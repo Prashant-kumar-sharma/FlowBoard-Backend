@@ -1,0 +1,264 @@
+server:
+  port: ${SERVER_PORT:8080}
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: api-gateway
+
+  boot:
+    admin:
+      client:
+        url: http://localhost:9090
+        username: admin
+        password: admin123
+
+  cloud:
+    gateway:
+      x-forwarded:
+        enabled: true
+
+      globalcors:
+        cors-configurations:
+          "[/**]":
+            allowed-origins: "http://localhost:4200"
+            allowed-methods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+              - PATCH
+            allowed-headers: "*"
+            allow-credentials: true
+        add-to-simple-url-handler-mapping: true
+
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+
+      routes:
+        # =========================
+        # AUTH SERVICE
+        # =========================
+        - id: auth-route
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/v1/auth/**
+          filters:
+            - AuthenticationFilter
+
+        - id: admin-route
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/v1/admin/**
+          filters:
+            - AuthenticationFilter
+
+        - id: user-profile-route
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/v1/user/me
+          filters:
+            - AuthenticationFilter
+
+        # =========================
+        # OTHER MICROSERVICES
+        # =========================
+        - id: workspace-service-route
+          uri: lb://workspace-service
+          predicates:
+            - Path=/api/v1/workspaces/**
+          filters:
+            - AuthenticationFilter
+
+        - id: payment-service-route
+          uri: lb://payment-service
+          predicates:
+            - Path=/api/v1/payments/**
+          filters:
+            - AuthenticationFilter
+
+        - id: board-service-route
+          uri: lb://board-service
+          predicates:
+            - Path=/api/v1/boards/**
+          filters:
+            - AuthenticationFilter
+
+        - id: list-service-route
+          uri: http://localhost:8084
+          predicates:
+            - Path=/api/v1/lists/**
+          filters:
+            - AuthenticationFilter
+
+        - id: comment-service-route
+          uri: lb://comment-service
+          predicates:
+            - Path=/api/v1/cards/*/comments, /api/v1/cards/*/comments/**, /api/v1/comments/**, /api/v1/cards/*/attachments, /api/v1/cards/*/attachments/**, /api/v1/attachments/**
+          filters:
+            - AuthenticationFilter
+
+        - id: label-service-route
+          uri: lb://label-service
+          predicates:
+            - Path=/api/v1/boards/*/labels, /api/v1/boards/*/labels/**, /api/v1/labels/**, /api/v1/cards/*/labels, /api/v1/cards/*/labels/**, /api/v1/cards/*/checklists, /api/v1/cards/*/checklists/**, /api/v1/checklists/**, /api/v1/checklist-items/**
+          filters:
+            - AuthenticationFilter
+
+        - id: card-service-route
+          uri: lb://card-service
+          predicates:
+            - Path=/api/v1/cards/**
+          filters:
+            - AuthenticationFilter
+
+        - id: notification-service-route
+          uri: lb://notification-service
+          predicates:
+            - Path=/api/v1/notifications/**
+          filters:
+            - AuthenticationFilter
+
+        # =========================
+        # 🔥 SWAGGER DOC ROUTES (FIXED)
+        # =========================
+        - id: auth-service-docs
+          uri: http://localhost:8081
+          predicates:
+            - Path=/v3/api-docs/auth-service/**, /v3/api-docs/auth-service
+          filters:
+            - RewritePath=/v3/api-docs/auth-service(?<segment>.*), /api-docs${segment}
+
+        - id: workspace-service-docs
+          uri: lb://workspace-service
+          predicates:
+            - Path=/v3/api-docs/workspace-service/**, /v3/api-docs/workspace-service
+          filters:
+            - RewritePath=/v3/api-docs/workspace-service(?<segment>.*), /api-docs${segment}
+
+        - id: payment-service-docs
+          uri: lb://payment-service
+          predicates:
+            - Path=/v3/api-docs/payment-service/**, /v3/api-docs/payment-service
+          filters:
+            - RewritePath=/v3/api-docs/payment-service(?<segment>.*), /api-docs${segment}
+
+        - id: board-service-docs
+          uri: lb://board-service
+          predicates:
+            - Path=/v3/api-docs/board-service/**, /v3/api-docs/board-service
+          filters:
+            - RewritePath=/v3/api-docs/board-service(?<segment>.*), /api-docs${segment}
+
+        - id: list-service-docs
+          uri: http://localhost:8084
+          predicates:
+            - Path=/v3/api-docs/list-service/**, /v3/api-docs/list-service
+          filters:
+            - RewritePath=/v3/api-docs/list-service(?<segment>.*), /api-docs${segment}
+
+        - id: card-service-docs
+          uri: lb://card-service
+          predicates:
+            - Path=/v3/api-docs/card-service/**, /v3/api-docs/card-service
+          filters:
+            - RewritePath=/v3/api-docs/card-service(?<segment>.*), /api-docs${segment}
+
+        - id: comment-service-docs
+          uri: lb://comment-service
+          predicates:
+            - Path=/v3/api-docs/comment-service/**, /v3/api-docs/comment-service
+          filters:
+            - RewritePath=/v3/api-docs/comment-service(?<segment>.*), /api-docs${segment}
+
+        - id: label-service-docs
+          uri: lb://label-service
+          predicates:
+            - Path=/v3/api-docs/label-service/**, /v3/api-docs/label-service
+          filters:
+            - RewritePath=/v3/api-docs/label-service(?<segment>.*), /api-docs${segment}
+
+        - id: notification-service-docs
+          uri: lb://notification-service
+          predicates:
+            - Path=/v3/api-docs/notification-service/**, /v3/api-docs/notification-service
+          filters:
+            - RewritePath=/v3/api-docs/notification-service(?<segment>.*), /api-docs${segment}
+
+
+        # =========================
+        # OAUTH
+        # =========================
+        - id: oauth2-route
+          uri: lb://auth-service
+          predicates:
+            - Path=/oauth2/**,/login/oauth2/**
+
+    loadbalancer:
+      retry:
+        enabled: true
+
+# =========================
+# EUREKA
+# =========================
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+    fetch-registry: true
+    register-with-eureka: true
+    healthcheck:
+      enabled: true
+
+  instance:
+    prefer-ip-address: true
+
+# =========================
+# ACTUATOR
+# =========================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+
+# =========================
+# 🔥 SWAGGER CONFIG (FIXED)
+# =========================
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    urls:
+      - name: Auth Service
+        url: /v3/api-docs/auth-service
+      - name: Workspace Service
+        url: /v3/api-docs/workspace-service
+      - name: Payment Service
+        url: /v3/api-docs/payment-service
+      - name: Board Service
+        url: /v3/api-docs/board-service
+      - name: List Service
+        url: /v3/api-docs/list-service
+      - name: Card Service
+        url: /v3/api-docs/card-service
+      - name: Comment Service
+        url: /v3/api-docs/comment-service
+      - name: Label Service
+        url: /v3/api-docs/label-service
+      - name: Notification Service
+        url: /v3/api-docs/notification-service
+  api-docs:
+    path: /v3/api-docs
+
+# =========================
+# LOGGING
+# =========================
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
+    com.flowboard.api_gateway: DEBUG
+
+app:
+  jwt:
+    secret: Zmxvd2JvYXJkLXN1cGVyLXNlY3JldC1rZXktZm9yLWp3dC1hdXRoZW50aWNhdGlvbg==
