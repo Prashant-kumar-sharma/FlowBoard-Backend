@@ -1,9 +1,9 @@
 package com.flowboard.api_gateway.service;
 
+import lombok.extern.slf4j.Slf4j;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.stereotype.Service;
@@ -14,16 +14,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import reactor.core.publisher.Mono;
 
+@Slf4j
 @Service
 public class SwaggerAggregatorService {
 
-    @Autowired
-    private DiscoveryClient discoveryClient;
-
-    @Autowired
-    private WebClient webClient;
+    private final DiscoveryClient discoveryClient;
+    private final WebClient webClient;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public SwaggerAggregatorService(DiscoveryClient discoveryClient, WebClient webClient) {
+        this.discoveryClient = discoveryClient;
+        this.webClient = webClient;
+    }
 
     public Mono<Map<String, Object>> getAggregatedSwagger() {
         Map<String, Object> aggregatedSwagger = new HashMap<>();
@@ -65,9 +68,9 @@ public class SwaggerAggregatorService {
                             JsonNode swaggerDoc = objectMapper.readTree(response);
                             // Here you would merge the swagger documentation
                             // For now, we'll just log it
-                            System.out.println("Fetched Swagger for " + serviceName + ": " + swaggerDoc.get("info").get("title").asText());
+                            log.info("Fetched Swagger for {}: {}", serviceName, swaggerDoc.get("info").get("title").asText());
                         } catch (Exception e) {
-                            System.err.println("Error parsing Swagger for " + serviceName + ": " + e.getMessage());
+                            log.error("Error parsing Swagger for {}: {}", serviceName, e.getMessage(), e);
                         }
                     })
                     .then();

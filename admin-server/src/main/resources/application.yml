@@ -13,6 +13,11 @@ spring:
             name: admin
             password: "admin123"
 
+app:
+    security:
+        csrf:
+            cookie-secure: false
+
 eureka:
     client:
         service-url:

@@ -1,7 +1,6 @@
 package com.flowboard.api_gateway.controller;
 
 import com.flowboard.api_gateway.service.SwaggerAggregatorService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,8 +13,11 @@ import java.util.Map;
 @RequestMapping("/v3/api-docs")
 public class SwaggerController {
 
-    @Autowired
-    private SwaggerAggregatorService swaggerAggregatorService;
+    private final SwaggerAggregatorService swaggerAggregatorService;
+
+    public SwaggerController(SwaggerAggregatorService swaggerAggregatorService) {
+        this.swaggerAggregatorService = swaggerAggregatorService;
+    }
 
     @GetMapping
     public Mono<ResponseEntity<Map<String, Object>>> getAggregatedSwagger() {

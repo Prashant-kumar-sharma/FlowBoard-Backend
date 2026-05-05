@@ -46,6 +46,10 @@ spring:
             - Path=/api/v1/auth/**
           filters:
             - AuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: authCircuitBreaker
+                fallbackUri: forward:/fallback/auth
 
         - id: admin-route
           uri: lb://auth-service
@@ -53,6 +57,10 @@ spring:
             - Path=/api/v1/admin/**
           filters:
             - AuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: authCircuitBreaker
+                fallbackUri: forward:/fallback/auth
 
         - id: user-profile-route
           uri: lb://auth-service
@@ -60,6 +68,10 @@ spring:
             - Path=/api/v1/user/me
           filters:
             - AuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: authCircuitBreaker
+                fallbackUri: forward:/fallback/auth
 
         # =========================
         # OTHER MICROSERVICES
@@ -70,6 +82,10 @@ spring:
             - Path=/api/v1/workspaces/**
           filters:
             - AuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: workspaceCircuitBreaker
+                fallbackUri: forward:/fallback/workspace
 
         - id: payment-service-route
           uri: lb://payment-service
@@ -77,6 +93,10 @@ spring:
             - Path=/api/v1/payments/**
           filters:
             - AuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: paymentCircuitBreaker
+                fallbackUri: forward:/fallback/payment
 
         - id: board-service-route
           uri: lb://board-service
@@ -84,13 +104,21 @@ spring:
             - Path=/api/v1/boards/**
           filters:
             - AuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: boardCircuitBreaker
+                fallbackUri: forward:/fallback/board
 
         - id: list-service-route
-          uri: http://localhost:8084
+          uri: lb://list-service
           predicates:
             - Path=/api/v1/lists/**
           filters:
             - AuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: listCircuitBreaker
+                fallbackUri: forward:/fallback/list
 
         - id: comment-service-route
           uri: lb://comment-service
@@ -98,6 +126,10 @@ spring:
             - Path=/api/v1/cards/*/comments, /api/v1/cards/*/comments/**, /api/v1/comments/**, /api/v1/cards/*/attachments, /api/v1/cards/*/attachments/**, /api/v1/attachments/**
           filters:
             - AuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: commentCircuitBreaker
+                fallbackUri: forward:/fallback/comment
 
         - id: label-service-route
           uri: lb://label-service
@@ -105,6 +137,10 @@ spring:
             - Path=/api/v1/boards/*/labels, /api/v1/boards/*/labels/**, /api/v1/labels/**, /api/v1/cards/*/labels, /api/v1/cards/*/labels/**, /api/v1/cards/*/checklists, /api/v1/cards/*/checklists/**, /api/v1/checklists/**, /api/v1/checklist-items/**
           filters:
             - AuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: labelCircuitBreaker
+                fallbackUri: forward:/fallback/label
 
         - id: card-service-route
           uri: lb://card-service
@@ -112,6 +148,10 @@ spring:
             - Path=/api/v1/cards/**
           filters:
             - AuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: cardCircuitBreaker
+                fallbackUri: forward:/fallback/card
 
         - id: notification-service-route
           uri: lb://notification-service
@@ -119,6 +159,10 @@ spring:
             - Path=/api/v1/notifications/**
           filters:
             - AuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: notificationCircuitBreaker
+                fallbackUri: forward:/fallback/notification
 
         # =========================
         # 🔥 SWAGGER DOC ROUTES (FIXED)
@@ -152,7 +196,7 @@ spring:
             - RewritePath=/v3/api-docs/board-service(?<segment>.*), /api-docs${segment}
 
         - id: list-service-docs
-          uri: http://localhost:8084
+          uri: lb://list-service
           predicates:
             - Path=/v3/api-docs/list-service/**, /v3/api-docs/list-service
           filters:
@@ -198,6 +242,39 @@ spring:
     loadbalancer:
       retry:
         enabled: true
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        waitDurationInOpenState: 30s
+        failureRateThreshold: 50
+        slowCallRateThreshold: 50
+        slowCallDurationThreshold: 3s
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+    instances:
+      authCircuitBreaker:
+        baseConfig: default
+      workspaceCircuitBreaker:
+        baseConfig: default
+      paymentCircuitBreaker:
+        baseConfig: default
+      boardCircuitBreaker:
+        baseConfig: default
+      listCircuitBreaker:
+        baseConfig: default
+      commentCircuitBreaker:
+        baseConfig: default
+      labelCircuitBreaker:
+        baseConfig: default
+      cardCircuitBreaker:
+        baseConfig: default
+      notificationCircuitBreaker:
+        baseConfig: default
 
 # =========================
 # EUREKA
@@ -262,3 +339,7 @@ logging:
 app:
   jwt:
     secret: Zmxvd2JvYXJkLXN1cGVyLXNlY3JldC1rZXktZm9yLWp3dC1hdXRoZW50aWNhdGlvbg==
+
+auth:
+  service:
+    internal-base-url: ${AUTH_SERVICE_INTERNAL_BASE_URL:http://localhost:8081/api/v1/auth/internal}

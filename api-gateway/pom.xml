@@ -41,6 +41,11 @@
 			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
 		</dependency>
 
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>
+		</dependency>
+
 		<!-- ✅ IMPORTANT FIX (Actuator for Eureka health checks) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
