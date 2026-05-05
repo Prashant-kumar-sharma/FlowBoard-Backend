@@ -889,6 +889,133 @@ comment-service/
 
 ---
 
+## Label Service — Deep Dive
+
+The **label-service** manages labels and checklists — two key organizational features for cards. Labels are board-scoped colored tags that can be attached to any card, while checklists provide per-card task breakdowns with assignees, due dates, and progress tracking.
+
+### Key Features
+
+- 🏷️ **Board Labels** — Create colored labels scoped to a board (e.g. "Bug", "Feature", "Urgent")
+- 🔗 **Card-Label Association** — Attach/detach labels to/from cards (many-to-many via join table)
+- ✅ **Checklists** — Create named checklists on cards with ordered items
+- 📋 **Checklist Items** — Individual tasks with text, completion toggle, assignee, and due date
+- 📊 **Progress Tracking** — Get completion percentage for a checklist
+- 🔢 **Position Ordering** — Both checklists and items support position-based ordering
+
+### Entities
+
+#### `labels` table
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | BIGINT | PK, auto-increment |
+| `board_id` | BIGINT | NOT NULL (scoped to a board) |
+| `name` | VARCHAR(255) | NOT NULL |
+| `color` | VARCHAR(255) | NOT NULL (hex color code) |
+| `created_at` | DATETIME | Auto-set |
+
+#### `card_labels` table (join table)
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | BIGINT | PK, auto-increment |
+| `card_id` | BIGINT | NOT NULL |
+| `label_id` | BIGINT | NOT NULL |
+
+> **Unique constraint:** `(card_id, label_id)` — a label can only be attached once per card.
+
+#### `checklists` table
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | BIGINT | PK, auto-increment |
+| `card_id` | BIGINT | NOT NULL |
+| `title` | VARCHAR(255) | NOT NULL |
+| `position` | INT | Default `0` |
+| `created_at` | DATETIME | Auto-set |
+
+#### `checklist_items` table
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | BIGINT | PK, auto-increment |
+| `checklist_id` | BIGINT | FK → `checklists.id` |
+| `text` | VARCHAR(255) | NOT NULL |
+| `is_completed` | BOOLEAN | Default `false` |
+| `assignee_id` | BIGINT | Optional |
+| `due_date` | DATE | Optional |
+| `position` | INT | NOT NULL, default `0` |
+
+### API Endpoints
+
+#### Labels (`/api/v1`)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `POST` | `/boards/{boardId}/labels` | Member | Create a label for a board |
+| `GET` | `/boards/{boardId}/labels` | Member | Get all labels in a board |
+| `PUT` | `/labels/{id}` | Member | Update label (name, color) |
+| `DELETE` | `/labels/{id}` | Member | Delete a label |
+
+#### Card-Label Association (`/api/v1`)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `POST` | `/cards/{cardId}/labels/{labelId}` | Member | Attach a label to a card |
+| `DELETE` | `/cards/{cardId}/labels/{labelId}` | Member | Detach a label from a card |
+| `GET` | `/cards/{cardId}/labels` | Member | Get all labels on a card |
+
+#### Checklists & Items (`/api/v1`)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `POST` | `/cards/{cardId}/checklists` | Member | Create a checklist on a card |
+| `GET` | `/cards/{cardId}/checklists` | Member | Get all checklists for a card |
+| `DELETE` | `/checklists/{id}` | Member | Delete a checklist (cascades to items) |
+| `POST` | `/checklists/{checklistId}/items` | Member | Add an item to a checklist |
+| `PATCH` | `/checklist-items/{itemId}/toggle` | Member | Toggle item completion |
+| `GET` | `/checklists/{checklistId}/progress` | Member | Get completion percentage |
+
+### Project Structure
+
+```
+label-service/
+├── src/main/java/com/flowboard/label/
+│   ├── config/           # OpenAPI configuration
+│   ├── controller/       # LabelController
+│   ├── dto/
+│   │   ├── request/      # CreateLabelRequest, CreateChecklistRequest, CreateChecklistItemRequest
+│   │   └── response/     # ChecklistResponse (with nested ItemResponse)
+│   ├── entity/           # Label, CardLabel, Checklist, ChecklistItem
+│   ├── exception/        # ResourceNotFoundException
+│   ├── kafka/            # (placeholder)
+│   ├── repository/       # LabelRepository, CardLabelRepository, ChecklistRepository, ChecklistItemRepository
+│   └── service/
+│       ├── LabelService.java
+│       └── impl/         # LabelServiceImpl
+├── Dockerfile
+└── pom.xml
+```
+
+### Dependencies
+
+| Dependency | Purpose |
+|---|---|
+| `spring-boot-starter-web` | REST API |
+| `spring-boot-starter-data-jpa` | Database access (Hibernate + MySQL) |
+| `spring-boot-starter-validation` | Request body validation |
+| `spring-boot-starter-websocket` | WebSocket / STOMP support |
+| `spring-boot-starter-actuator` | Health & metrics endpoints |
+| `spring-kafka` | Kafka (included, not yet publishing) |
+| `springdoc-openapi-starter-webmvc-ui` | Swagger UI |
+| `spring-cloud-starter-netflix-eureka-client` | Service discovery |
+| `spring-boot-admin-starter-client` | Health monitoring |
+| `mysql-connector-j` | MySQL JDBC driver |
+| `jackson-databind` | JSON serialization |
+| `lombok` | Boilerplate reduction |
+
+---
+
 ## Quick Start
 
 ### Prerequisites
