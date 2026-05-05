@@ -613,6 +613,177 @@ list-service/
 
 ---
 
+## Card Service — Deep Dive
+
+The **card-service** is the core work-item engine of FlowBoard. It manages cards (tasks) within lists, including creation, assignment, priority/status updates, drag-drop movement between lists, reordering, archiving, activity logging, and Kafka event publishing for notifications.
+
+### Key Features
+
+- 🃏 **Card CRUD** — Create, read, update, and delete task cards within lists
+- 🔢 **Position & Reorder** — Integer-based positioning with bulk reorder endpoint
+- ↔️ **Cross-List Move** — Move cards between lists with position targeting
+- 👤 **Assignee Management** — Assign/reassign cards to team members
+- ⚡ **Priority Levels** — `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`
+- 📊 **Status Tracking** — `TO_DO` → `IN_PROGRESS` → `IN_REVIEW` → `DONE`
+- 📅 **Due & Start Dates** — Track timelines with overdue detection
+- 🎨 **Cover Colors** — Visual card customization
+- 📦 **Archive / Unarchive** — Soft-archive cards without data loss
+- 📋 **Activity Log** — Records every field change with old/new values and actor
+- 📡 **Kafka Events** — Publishes `card.assigned` and `card.moved` events for notification-service
+- 🔗 **Internal API** — Board-service and list-service can trigger bulk card deletion
+- ⚡ **Redis Caching** — Caches card data for performance
+
+### Entities
+
+#### `cards` table
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | BIGINT | PK, auto-increment |
+| `list_id` | BIGINT | NOT NULL (references list-service) |
+| `board_id` | BIGINT | NOT NULL (references board-service) |
+| `title` | VARCHAR(255) | NOT NULL |
+| `description` | TEXT | Optional |
+| `position` | INT | NOT NULL (0-indexed order within list) |
+| `priority` | ENUM | `LOW` / `MEDIUM` / `HIGH` / `CRITICAL` (default: `MEDIUM`) |
+| `status` | ENUM | `TO_DO` / `IN_PROGRESS` / `IN_REVIEW` / `DONE` (default: `TO_DO`) |
+| `due_date` | DATE | Optional |
+| `start_date` | DATE | Optional |
+| `assignee_id` | BIGINT | Optional (references auth-service user) |
+| `created_by_id` | BIGINT | User who created the card |
+| `is_archived` | BOOLEAN | Default `false` |
+| `cover_color` | VARCHAR(255) | Optional |
+| `created_at` | DATETIME | Auto-set on creation |
+| `updated_at` | DATETIME | Auto-set on update |
+
+#### `card_activities` table
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | BIGINT | PK, auto-increment |
+| `card_id` | BIGINT | NOT NULL |
+| `actor_id` | BIGINT | NOT NULL (user who made the change) |
+| `action` | VARCHAR(255) | NOT NULL (e.g. `CARD_CREATED`, `STATUS_CHANGED`) |
+| `field_name` | VARCHAR(255) | Optional (e.g. `status`, `assigneeId`) |
+| `old_value` | VARCHAR(255) | Optional (previous value) |
+| `new_value` | VARCHAR(255) | Optional (new value) |
+| `created_at` | DATETIME | Auto-set |
+
+### API Endpoints
+
+#### Card CRUD (`/api/v1/cards`)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `POST` | `/` | Member | Create a new card in a list |
+| `GET` | `/{id}` | Member | Get card by ID |
+| `GET` | `/list/{listId}` | Member | Get all cards in a list |
+| `GET` | `/board/{boardId}` | Member | Get all cards in a board |
+| `GET` | `/assignee/{userId}` | Member | Get all cards assigned to a user |
+| `GET` | `/overdue` | Member | Get all overdue cards |
+| `PUT` | `/{id}` | Member | Update card (title, description, dates, etc.) |
+| `DELETE` | `/{id}` | Member | Delete card |
+
+#### Movement & Ordering (`/api/v1/cards`)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `PATCH` | `/{id}/move` | Member | Move card to a different list with position |
+| `PUT` | `/list/{listId}/reorder` | Member | Reorder cards — accepts `[id1, id2, ...]` |
+| `PATCH` | `/{id}/archive` | Member | Archive a card |
+| `PATCH` | `/{id}/unarchive` | Member | Unarchive a card |
+
+#### Field Updates (`/api/v1/cards`)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `PATCH` | `/{id}/assignee` | Member | Set/change card assignee |
+| `PATCH` | `/{id}/priority` | Member | Set card priority |
+| `PATCH` | `/{id}/status` | Member | Set card status |
+
+#### Activity Log (`/api/v1/cards`)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `GET` | `/{id}/activity` | Member | Get activity log for a card |
+| `GET` | `/admin/activity` | Platform Admin | Get all card activity across the platform |
+| `GET` | `/admin/all` | Platform Admin | List every card on the platform |
+
+#### Internal — Service-to-Service (`/api/v1/cards/internal`)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `DELETE` | `/board/{boardId}` | Cluster only | Delete all cards in a board (called by board-service) |
+| `DELETE` | `/list/{listId}` | Cluster only | Delete all cards in a list (called by list-service) |
+
+### Kafka Topics
+
+| Topic | Payload | Triggered When |
+|---|---|---|
+| `flowboard.card.assigned` | `{ cardId, assigneeId, actorId }` | Card is assigned to a user |
+| `flowboard.card.moved` | `{ cardId, fromListId, toListId, actorId }` | Card is moved between lists |
+
+> These events are consumed by **notification-service** to send email/in-app notifications.
+
+### Inter-Service Communication
+
+```
+┌──────────────────┐                   ┌──────────────────┐
+│ Board Svc        │── HTTP cascade ──▶│                  │
+│ (port 8083)      │   delete          │                  │
+└──────────────────┘                   │   Card Svc       │
+                                       │   (port 8085)    │
+┌──────────────────┐                   │                  │
+│ List Svc         │── HTTP cascade ──▶│                  │
+│ (port 8084)      │   delete          └──────────────────┘
+└──────────────────┘                          │
+                                              ├──▶ Kafka (card.assigned, card.moved)
+                                              └──▶ Redis (card cache)
+```
+
+### Project Structure
+
+```
+card-service/
+├── src/main/java/com/flowboard/card/
+│   ├── config/           # Redis, OpenAPI, WebSocket configuration
+│   ├── controller/       # CardController
+│   ├── dto/
+│   │   ├── request/      # CreateCardRequest, MoveCardRequest, AssignCardRequest,
+│   │   │                 # UpdatePriorityRequest, UpdateStatusRequest
+│   │   └── response/     # CardResponse
+│   ├── entity/           # Card, CardActivity
+│   ├── exception/        # ResourceNotFoundException
+│   ├── kafka/            # CardEventProducer (card.assigned, card.moved)
+│   ├── repository/       # CardRepository, CardActivityRepository
+│   └── service/
+│       ├── CardService.java
+│       └── impl/         # CardServiceImpl
+├── Dockerfile
+└── pom.xml
+```
+
+### Dependencies
+
+| Dependency | Purpose |
+|---|---|
+| `spring-boot-starter-web` | REST API |
+| `spring-boot-starter-data-jpa` | Database access (Hibernate + MySQL) |
+| `spring-boot-starter-data-redis` | Redis caching layer |
+| `spring-boot-starter-cache` | Spring Cache abstraction |
+| `spring-boot-starter-validation` | Request body validation |
+| `spring-boot-starter-websocket` | WebSocket / STOMP support |
+| `spring-boot-starter-actuator` | Health & metrics endpoints |
+| `spring-kafka` | Kafka event publishing (`card.assigned`, `card.moved`) |
+| `springdoc-openapi-starter-webmvc-ui` | Swagger UI |
+| `spring-cloud-starter-netflix-eureka-client` | Service discovery |
+| `spring-boot-admin-starter-client` | Health monitoring |
+| `mysql-connector-j` | MySQL JDBC driver |
+| `jackson-databind` | JSON serialization (Kafka payloads) |
+| `lombok` | Boilerplate reduction |
+
+---
+
 ## Quick Start
 
 ### Prerequisites
