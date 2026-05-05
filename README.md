@@ -1134,6 +1134,135 @@ notification-service/
 
 ---
 
+## Payment Service — Deep Dive
+
+The **payment-service** manages premium subscriptions and payment processing via **Razorpay**. It handles checkout order creation, payment verification, subscription activation, and exposes internal APIs for other services (workspace-service) to check entitlement status before gating premium features.
+
+### Key Features
+
+- 💳 **Razorpay Checkout** — Creates Razorpay orders and returns checkout session details
+- ✅ **Payment Verification** — Confirms Razorpay payment and activates premium subscription
+- 📊 **Subscription Summary** — Shows current user's premium status, plan, and activation date
+- 🔗 **Internal Entitlement API** — Workspace-service checks if a user has premium before creating workspaces
+- 🧹 **User Data Cleanup** — Internal endpoint to delete all payment data for a user (GDPR)
+- 📡 **Kafka Events** — Publishes `premium.activated` event for notification-service
+- ⚡ **Redis Caching** — Caches entitlement lookups for performance
+
+### Entities
+
+#### `payment_orders` table
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | BIGINT | PK, auto-increment |
+| `user_id` | BIGINT | NOT NULL |
+| `provider_order_id` | VARCHAR(64) | NOT NULL, UNIQUE (Razorpay order ID) |
+| `provider_payment_id` | VARCHAR(64) | Optional (set after payment) |
+| `provider_name` | VARCHAR(32) | NOT NULL (e.g. `RAZORPAY`) |
+| `plan_code` | VARCHAR(64) | NOT NULL (e.g. `PREMIUM_MONTHLY`) |
+| `amount_paise` | INT | NOT NULL (amount in smallest currency unit) |
+| `currency` | VARCHAR(8) | NOT NULL (e.g. `INR`) |
+| `status` | ENUM | `CREATED` / `PAID` / `FAILED` |
+| `notes` | VARCHAR(512) | Optional |
+| `created_at` | DATETIME | Auto-set on creation |
+| `updated_at` | DATETIME | Auto-set on update |
+
+#### `premium_subscriptions` table
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | BIGINT | PK, auto-increment |
+| `user_id` | BIGINT | NOT NULL, UNIQUE (one subscription per user) |
+| `plan_code` | VARCHAR(64) | NOT NULL |
+| `provider_name` | VARCHAR(16) | NOT NULL |
+| `provider_order_id` | VARCHAR(64) | Optional |
+| `provider_payment_id` | VARCHAR(64) | Optional |
+| `status` | ENUM | `ACTIVE` / `INACTIVE` |
+| `activated_at` | DATETIME | Set when premium is activated |
+| `created_at` | DATETIME | Auto-set on creation |
+| `updated_at` | DATETIME | Auto-set on update |
+
+### API Endpoints
+
+#### User-Facing (`/api/v1/payments`)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `GET` | `/summary` | Member | Get current user's premium summary (status, plan, dates) |
+| `POST` | `/checkout` | Member | Create a Razorpay checkout order |
+| `POST` | `/confirm` | Member | Verify Razorpay payment and activate premium |
+
+#### Internal — Service-to-Service (`/api/v1/internal/payments`)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `GET` | `/users/{userId}/entitlement` | Cluster only | Check if user has active premium (used by workspace-service) |
+| `DELETE` | `/users/{userId}` | Cluster only | Delete all payment data for a user |
+
+### Kafka Topics
+
+| Topic | Payload | Triggered When |
+|---|---|---|
+| `flowboard.payment.premium.activated` | `{ userId, planCode, planName, amountPaise, currency, providerName, providerOrderId, providerPaymentId, activatedAt }` | Payment confirmed and premium activated |
+
+> Consumed by **notification-service** to send premium confirmation email + invoice.
+
+### Inter-Service Communication
+
+```
+┌──────────────────┐       HTTP        ┌──────────────────┐
+│ Workspace Svc    │──────────────────▶│ Payment Svc      │
+│ (port 8082)      │ entitlement check │ (port 8089)      │
+└──────────────────┘                   └──────────────────┘
+                                              │
+                                              ├──▶ Razorpay API (order creation, verification)
+                                              ├──▶ Kafka (payment.premium.activated)
+                                              └──▶ Redis (entitlement cache)
+```
+
+### Project Structure
+
+```
+payment-service/
+├── src/main/java/com/flowboard/payment/
+│   ├── config/           # OpenAPI, Redis configuration
+│   ├── controller/
+│   │   ├── PaymentController.java           # User-facing (checkout, confirm, summary)
+│   │   └── InternalPaymentController.java   # Service-to-service (entitlement, cleanup)
+│   ├── dto/
+│   │   ├── request/      # ConfirmPaymentRequest
+│   │   └── response/     # CheckoutSessionResponse, PaymentSummaryResponse, PaymentEntitlementResponse
+│   ├── entity/           # PaymentOrder, PremiumSubscription
+│   ├── exception/        # ResourceNotFoundException
+│   ├── kafka/            # PaymentEventProducer (with PremiumActivatedEvent record)
+│   ├── repository/       # PaymentOrderRepository, PremiumSubscriptionRepository
+│   └── service/
+│       ├── PaymentService.java          # Core payment logic
+│       └── PaymentQueryService.java     # Read-only queries
+├── Dockerfile
+└── pom.xml
+```
+
+### Dependencies
+
+| Dependency | Purpose |
+|---|---|
+| `spring-boot-starter-web` | REST API |
+| `spring-boot-starter-data-jpa` | Database access (Hibernate + MySQL) |
+| `spring-boot-starter-data-redis` | Redis caching (entitlement lookups) |
+| `spring-boot-starter-cache` | Spring Cache abstraction |
+| `spring-boot-starter-validation` | Request body validation |
+| `spring-boot-starter-actuator` | Health & metrics endpoints |
+| `spring-kafka` | Kafka event publishing (`premium.activated`) |
+| `springdoc-openapi-starter-webmvc-ui` | Swagger UI |
+| `spring-cloud-starter-netflix-eureka-client` | Service discovery |
+| `spring-boot-admin-starter-client` | Health monitoring |
+| `mysql-connector-j` | MySQL JDBC driver |
+| `spring-dotenv` | `.env` file loading (Razorpay credentials) |
+| `lombok` | Boilerplate reduction |
+
+---
+
 ## Quick Start
 
 ### Prerequisites
