@@ -452,7 +452,7 @@ The **board-service** manages Kanban boards within workspaces. It handles board 
                                               ├──▶ Kafka (board events)
                                               └──▶ Redis (board cache)
 ```
-
+ 
 ### Project Structure
 
 ```
