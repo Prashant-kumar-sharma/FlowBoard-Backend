@@ -497,6 +497,122 @@ board-service/
 
 ---
 
+## List Service — Deep Dive
+
+The **list-service** manages the Kanban columns (lists) within boards. It handles list creation, position ordering, drag-drop reordering, archiving, cross-board moves, and cascade cleanup when a board is deleted. Each list tracks its position for consistent column ordering on the frontend.
+
+### Key Features
+
+- 📝 **List CRUD** — Create, read, update, and delete Kanban columns within a board
+- 🔢 **Position Management** — Integer-based ordering ensures consistent column layout
+- 🔄 **Drag-Drop Reorder** — Bulk reorder endpoint accepts an ordered list of IDs
+- 📦 **Archive / Unarchive** — Soft-archive lists (`isArchived=true`) without data loss
+- 🎨 **Custom Colors** — Lists support custom color values (default `#E2E4E9`)
+- ↔️ **Cross-Board Move** — Move a list from one board to another
+- 🧹 **Cascade Cleanup** — Calls card-service to delete cards when a list is deleted
+- 🔗 **Internal API** — Board-service can trigger bulk list deletion via internal endpoint
+- ⚡ **Redis Caching** — Caches list data for performance
+
+### Entity
+
+#### `task_lists` table
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | BIGINT | PK, auto-increment |
+| `name` | VARCHAR(255) | NOT NULL |
+| `board_id` | BIGINT | NOT NULL (references board-service) |
+| `position` | INT | NOT NULL (0-indexed column order) |
+| `color` | VARCHAR(255) | Default `#E2E4E9` |
+| `is_archived` | BOOLEAN | Default `false` |
+| `created_at` | DATETIME | Auto-set on creation |
+| `updated_at` | DATETIME | Auto-set on update |
+
+### API Endpoints
+
+#### List CRUD (`/api/v1/lists`)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `POST` | `/` | Member | Create a new list in a board |
+| `GET` | `/{id}` | Member | Get list by ID |
+| `GET` | `/board/{boardId}` | Member | Get all active lists in a board (ordered by position) |
+| `GET` | `/board/{boardId}/archived` | Member | Get archived lists in a board |
+| `PUT` | `/{id}` | Member | Update list (name, color) |
+| `DELETE` | `/{id}` | Member | Delete list (cascades to cards) |
+
+#### Position & Movement (`/api/v1/lists`)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `PUT` | `/board/{boardId}/reorder` | Member | Reorder lists — accepts `[id1, id2, id3, ...]` |
+| `PATCH` | `/{id}/archive` | Member | Archive a list |
+| `PATCH` | `/{id}/unarchive` | Member | Unarchive a list |
+| `PATCH` | `/{id}/move` | Member | Move list to a different board |
+
+#### Internal — Service-to-Service (`/api/v1/lists/internal`)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `DELETE` | `/board/{boardId}` | Cluster only | Delete all lists in a board (called by board-service) |
+
+### Inter-Service Communication
+
+```
+┌──────────────────┐                   ┌──────────────────┐
+│ Board Svc        │── HTTP cascade ──▶│ List Svc         │
+│ (port 8083)      │   delete          │ (port 8084)      │
+└──────────────────┘                   └──────────────────┘
+                                              │
+                                              ├── HTTP ──▶ Card Svc (port 8085)
+                                              │            cascade delete cards
+                                              │
+                                              └──▶ Redis (list cache)
+```
+
+### Project Structure
+
+```
+list-service/
+├── src/main/java/com/flowboard/list/
+│   ├── config/           # Redis, OpenAPI, WebSocket configuration
+│   ├── controller/       # ListController
+│   ├── dto/
+│   │   ├── request/      # CreateListRequest, MoveListRequest
+│   │   └── response/     # ListResponse
+│   ├── entity/           # TaskList
+│   ├── exception/        # ResourceNotFoundException
+│   ├── kafka/            # (empty — no events published yet)
+│   ├── repository/       # TaskListRepository
+│   └── service/
+│       ├── ListService.java
+│       ├── CardCleanupClient.java     # HTTP client → card-service
+│       └── impl/                      # ListServiceImpl
+├── Dockerfile
+└── pom.xml
+```
+
+### Dependencies
+
+| Dependency | Purpose |
+|---|---|
+| `spring-boot-starter-web` | REST API |
+| `spring-boot-starter-data-jpa` | Database access (Hibernate + MySQL) |
+| `spring-boot-starter-data-redis` | Redis caching layer |
+| `spring-boot-starter-cache` | Spring Cache abstraction |
+| `spring-boot-starter-validation` | Request body validation |
+| `spring-boot-starter-websocket` | WebSocket / STOMP support |
+| `spring-boot-starter-actuator` | Health & metrics endpoints |
+| `spring-kafka` | Kafka (included but not yet producing events) |
+| `springdoc-openapi-starter-webmvc-ui` | Swagger UI |
+| `spring-cloud-starter-netflix-eureka-client` | Service discovery |
+| `spring-boot-admin-starter-client` | Health monitoring |
+| `mysql-connector-j` | MySQL JDBC driver |
+| `jackson-databind` | JSON serialization |
+| `lombok` | Boilerplate reduction |
+
+---
+
 ## Quick Start
 
 ### Prerequisites
