@@ -1016,6 +1016,124 @@ label-service/
 
 ---
 
+## Notification Service — Deep Dive
+
+The **notification-service** is the event-driven notification hub of FlowBoard. It **consumes Kafka events** from multiple services (card, workspace, board, payment, auth) and dispatches both **in-app notifications** (stored in MySQL) and **email notifications** (via SMTP). It also exposes a REST API for users to manage their notification inbox.
+
+### Key Features
+
+- 📨 **Kafka Event Consumer** — Listens to 6 topics for real-time event processing
+- 🔔 **In-App Notifications** — Persisted to MySQL with read/unread tracking
+- 📧 **Email Dispatch** — Sends themed emails for assignments, mentions, invitations, premium activation, invoices, and account status changes
+- 📊 **Unread Count** — Lightweight endpoint for badge counts
+- ✅ **Mark Read** — Individual or bulk mark-as-read
+- 🗑️ **Cleanup** — Delete individual or all read notifications
+- 📢 **Admin Broadcast** — Platform admins can send notifications to specific users
+- 🔗 **Inter-Service Lookups** — Resolves user names/emails from auth-service and card titles from card-service
+
+### Entity
+
+#### `notifications` table
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | BIGINT | PK, auto-increment |
+| `recipient_id` | BIGINT | NOT NULL |
+| `actor_id` | BIGINT | Optional (who triggered the notification) |
+| `type` | ENUM | `ASSIGNMENT` / `MENTION` / `DUE_DATE` / `COMMENT` / `MOVE` / `BROADCAST` |
+| `title` | VARCHAR(255) | NOT NULL |
+| `message` | VARCHAR(255) | NOT NULL |
+| `related_id` | BIGINT | Optional (linked entity ID) |
+| `related_type` | VARCHAR(255) | Optional (e.g. `CARD`, `BOARD`) |
+| `deep_link_url` | VARCHAR(255) | Optional (frontend navigation link) |
+| `is_read` | BOOLEAN | Default `false` |
+| `created_at` | DATETIME | Auto-set |
+
+### Kafka Topics Consumed
+
+| Topic | Source | Action |
+|---|---|---|
+| `flowboard.card.assigned` | card-service | In-app + email: "You have been assigned to {card}" |
+| `flowboard.mention.notification` | comment-service | In-app + email: "{actor} mentioned you in {card}" |
+| `flowboard.workspace.member.invited` | workspace-service | In-app + email: workspace invitation |
+| `flowboard.board.member.invited` | board-service | In-app + email: board invitation |
+| `flowboard.payment.premium.activated` | payment-service | In-app + email: premium confirmation + invoice |
+| `flowboard.account.status.changed` | auth-service | In-app + email: account suspended/restored |
+
+### API Endpoints (`/api/v1/notifications`)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `GET` | `/` | Member | Get all notifications for the current user |
+| `GET` | `/unread-count` | Member | Get unread notification count |
+| `PATCH` | `/{id}/read` | Member | Mark a single notification as read |
+| `PATCH` | `/read-all` | Member | Mark all notifications as read |
+| `DELETE` | `/read` | Member | Delete all read notifications |
+| `DELETE` | `/{id}` | Member | Delete a specific notification |
+| `POST` | `/broadcast` | Platform Admin | Send notification to specific users |
+
+### Inter-Service Communication
+
+```
+                    Kafka Topics
+┌──────────────┐    ┌─────────────────────────────────┐
+│ Card Svc     │───▶│ flowboard.card.assigned          │
+└──────────────┘    │ flowboard.mention.notification    │
+┌──────────────┐    │ flowboard.workspace.member.invited│───▶┌──────────────────┐
+│ Workspace Svc│───▶│ flowboard.board.member.invited    │    │ Notification Svc │
+└──────────────┘    │ flowboard.payment.premium.activated│   │ (port 8088)      │
+┌──────────────┐    │ flowboard.account.status.changed  │    └──────────────────┘
+│ Payment Svc  │───▶└─────────────────────────────────┘           │
+└──────────────┘                                                  │
+┌──────────────┐                                                  ├── HTTP ──▶ Auth Svc (user lookup)
+│ Auth Svc     │───▶ (account.status.changed)                     ├── HTTP ──▶ Card Svc (card title)
+└──────────────┘                                                  └── SMTP ──▶ Email dispatch
+```
+
+### Project Structure
+
+```
+notification-service/
+├── src/main/java/com/flowboard/notification/
+│   ├── config/           # OpenAPI, WebSocket configuration
+│   ├── controller/       # NotificationController
+│   ├── dto/
+│   │   └── request/      # BroadcastRequest
+│   ├── entity/           # Notification (with NotificationType enum)
+│   ├── exception/        # ResourceNotFoundException
+│   ├── kafka/
+│   │   ├── NotificationConsumer.java        # Consumer interface
+│   │   └── NotificationKafkaConsumer.java   # 6 @KafkaListener handlers
+│   ├── repository/       # NotificationRepository
+│   └── service/
+│       ├── NotificationService.java
+│       ├── EmailService.java               # SMTP email templates (with InvoiceEmailDetails)
+│       └── impl/                           # NotificationServiceImpl
+├── Dockerfile
+└── pom.xml
+```
+
+### Dependencies
+
+| Dependency | Purpose |
+|---|---|
+| `spring-boot-starter-web` | REST API |
+| `spring-boot-starter-data-jpa` | Database access (Hibernate + MySQL) |
+| `spring-boot-starter-validation` | Request body validation |
+| `spring-boot-starter-mail` | SMTP email dispatch |
+| `spring-boot-starter-websocket` | WebSocket / STOMP support |
+| `spring-boot-starter-actuator` | Health & metrics endpoints |
+| `spring-kafka` | Kafka consumer (6 topics) |
+| `springdoc-openapi-starter-webmvc-ui` | Swagger UI |
+| `spring-cloud-starter-netflix-eureka-client` | Service discovery |
+| `spring-boot-admin-starter-client` | Health monitoring |
+| `mysql-connector-j` | MySQL JDBC driver |
+| `jackson-databind` | JSON deserialization (Kafka payloads) |
+| `spring-dotenv` | `.env` file loading (SMTP credentials) |
+| `lombok` | Boilerplate reduction |
+
+---
+
 ## Quick Start
 
 ### Prerequisites
