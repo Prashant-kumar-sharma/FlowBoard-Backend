@@ -784,6 +784,111 @@ card-service/
 
 ---
 
+## Comment Service — Deep Dive
+
+The **comment-service** handles discussion and file collaboration on cards. It supports threaded comments (with replies), soft-delete, file attachments (both metadata-only and physical upload), and file retrieval — making it the collaboration hub for each card.
+
+### Key Features
+
+- 💬 **Threaded Comments** — Top-level comments and nested replies via `parentCommentId`
+- ✏️ **Edit & Delete** — Authors can edit their own comments; soft-delete with `isDeleted=true`
+- 🔢 **Comment Count** — Lightweight endpoint to get comment count per card
+- 📎 **Attachment Metadata** — Register external file URLs with metadata (name, type, size)
+- 📤 **Physical File Upload** — Multipart file upload with local storage + auto-generated metadata
+- 📥 **File Retrieval** — Serve uploaded files inline via `/api/v1/files/{filename}`
+- 🔌 **WebSocket Support** — Real-time comment broadcast via STOMP
+
+### Entities
+
+#### `comments` table
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | BIGINT | PK, auto-increment |
+| `card_id` | BIGINT | NOT NULL (references card-service) |
+| `author_id` | BIGINT | NOT NULL (references auth-service user) |
+| `content` | TEXT | NOT NULL |
+| `parent_comment_id` | BIGINT | Optional (NULL = top-level, set = reply) |
+| `is_deleted` | BOOLEAN | Default `false` |
+| `created_at` | DATETIME | Auto-set on creation |
+| `updated_at` | DATETIME | Auto-set on update |
+
+#### `attachments` table
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | BIGINT | PK, auto-increment |
+| `card_id` | BIGINT | NOT NULL |
+| `uploader_id` | BIGINT | NOT NULL |
+| `file_name` | VARCHAR(255) | NOT NULL (original filename) |
+| `file_url` | VARCHAR(255) | NOT NULL (storage path or external URL) |
+| `file_type` | VARCHAR(255) | Optional (MIME type, e.g. `image/png`) |
+| `size_kb` | BIGINT | Optional (file size in KB) |
+| `uploaded_at` | DATETIME | Auto-set on creation |
+
+### API Endpoints
+
+#### Comments (`/api/v1`)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `POST` | `/cards/{cardId}/comments` | Member | Add a comment (or reply via `parentCommentId`) |
+| `GET` | `/cards/{cardId}/comments` | Member | Get top-level comments for a card |
+| `GET` | `/comments/{id}/replies` | Member | Get replies to a specific comment |
+| `PUT` | `/comments/{id}` | Author | Edit a comment |
+| `DELETE` | `/comments/{id}` | Author | Soft-delete a comment |
+| `GET` | `/cards/{cardId}/comments/count` | Member | Get comment count for a card |
+
+#### Attachments (`/api/v1`)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `POST` | `/cards/{cardId}/attachments` | Member | Add attachment metadata (external URL) |
+| `GET` | `/cards/{cardId}/attachments` | Member | List all attachments for a card |
+| `DELETE` | `/attachments/{id}` | Uploader | Delete an attachment |
+| `POST` | `/cards/{cardId}/attachments/upload` | Member | Upload a physical file (multipart) |
+| `GET` | `/files/{filename}` | Member | Retrieve/download an uploaded file |
+
+### Project Structure
+
+```
+comment-service/
+├── src/main/java/com/flowboard/comment/
+│   ├── config/           # OpenAPI, WebSocket configuration
+│   ├── controller/       # CommentController
+│   ├── dto/
+│   │   └── request/      # CreateCommentRequest, CreateAttachmentRequest
+│   ├── entity/           # Comment, Attachment
+│   ├── exception/        # ResourceNotFoundException
+│   ├── kafka/            # (placeholder for future events)
+│   ├── repository/       # CommentRepository, AttachmentRepository
+│   └── service/
+│       ├── CommentService.java
+│       ├── FileStorageService.java    # Local file storage (store/load)
+│       └── impl/                      # CommentServiceImpl
+├── Dockerfile
+└── pom.xml
+```
+
+### Dependencies
+
+| Dependency | Purpose |
+|---|---|
+| `spring-boot-starter-web` | REST API + multipart file upload |
+| `spring-boot-starter-data-jpa` | Database access (Hibernate + MySQL) |
+| `spring-boot-starter-validation` | Request body validation |
+| `spring-boot-starter-websocket` | WebSocket / STOMP support |
+| `spring-boot-starter-actuator` | Health & metrics endpoints |
+| `spring-kafka` | Kafka (included, not yet publishing) |
+| `springdoc-openapi-starter-webmvc-ui` | Swagger UI |
+| `spring-cloud-starter-netflix-eureka-client` | Service discovery |
+| `spring-boot-admin-starter-client` | Health monitoring |
+| `mysql-connector-j` | MySQL JDBC driver |
+| `jackson-databind` | JSON serialization |
+| `lombok` | Boilerplate reduction |
+
+---
+
 ## Quick Start
 
 ### Prerequisites
