@@ -1,0 +1,22 @@
+# Stage 1: Build
+FROM maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /app
+
+COPY pom.xml ./pom.xml
+RUN mvn install -N -B -q
+
+COPY admin-server/pom.xml ./admin-server/pom.xml
+WORKDIR /app/admin-server
+RUN mvn dependency:go-offline -B -q 2>/dev/null || true
+COPY admin-server/src ./src
+RUN mvn clean package -DskipTests -B
+
+# Stage 2: Run
+FROM eclipse-temurin:17-jre-alpine
+WORKDIR /app
+RUN addgroup -S flowboard && adduser -S flowboard -G flowboard
+COPY --from=build /app/admin-server/target/*.jar app.jar
+RUN chown flowboard:flowboard app.jar
+USER flowboard
+EXPOSE 9090
+ENTRYPOINT ["java", "-jar", "app.jar"]

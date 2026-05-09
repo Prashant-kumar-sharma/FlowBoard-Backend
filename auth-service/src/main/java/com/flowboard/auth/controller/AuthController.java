@@ -11,6 +11,7 @@ import com.flowboard.auth.dto.response.AuthResponse;
 import com.flowboard.auth.dto.response.OtpChallengeResponse;
 import com.flowboard.auth.dto.response.UserResponse;
 import com.flowboard.auth.entity.User;
+import com.flowboard.auth.exception.InvalidCredentialsException;
 import com.flowboard.auth.exception.ResourceNotFoundException;
 import com.flowboard.auth.repository.UserRepository;
 import com.flowboard.auth.service.AuthService;
@@ -67,8 +68,8 @@ public class AuthController {
     }
 
     @PostMapping("/login/request-otp")
-    @Operation(summary = "GUEST - Request sign-in OTP")
-    public ResponseEntity<OtpChallengeResponse> requestLoginOtp(@Valid @RequestBody EmailOtpRequest request) {
+    @Operation(summary = "GUEST - Request sign-in OTP (requires password)")
+    public ResponseEntity<OtpChallengeResponse> requestLoginOtp(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.requestLoginOtp(request));
     }
 
@@ -103,9 +104,10 @@ public class AuthController {
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "MEMBER - Logout")
     public ResponseEntity<Void> logout(
+            @RequestHeader(value = "X-User-Id", required = false) Long xUserId,
             @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest request) {
-        authService.logout(getUserId(userDetails), extractToken(request));
+        authService.logout(getUserId(xUserId, userDetails), extractToken(request));
         return ResponseEntity.noContent().build();
     }
 
@@ -119,8 +121,10 @@ public class AuthController {
     @PreAuthorize("hasRole('MEMBER')")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "MEMBER - Get own profile")
-    public ResponseEntity<UserResponse> getProfile(@AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(authService.getProfile(getUserId(userDetails)));
+    public ResponseEntity<UserResponse> getProfile(
+            @RequestHeader(value = "X-User-Id", required = false) Long xUserId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(authService.getProfile(getUserId(xUserId, userDetails)));
     }
 
     @PutMapping("/profile")
@@ -128,9 +132,10 @@ public class AuthController {
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "MEMBER - Update own profile")
     public ResponseEntity<UserResponse> updateProfile(
+            @RequestHeader(value = "X-User-Id", required = false) Long xUserId,
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody UpdateProfileRequest request) {
-        return ResponseEntity.ok(authService.updateProfile(getUserId(userDetails), request));
+        return ResponseEntity.ok(authService.updateProfile(getUserId(xUserId, userDetails), request));
     }
 
     @PutMapping("/password")
@@ -138,9 +143,10 @@ public class AuthController {
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "MEMBER - Change password")
     public ResponseEntity<Void> changePassword(
+            @RequestHeader(value = "X-User-Id", required = false) Long xUserId,
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody Map<String, String> body) {
-        authService.changePassword(getUserId(userDetails), body.get("oldPassword"), body.get("newPassword"));
+        authService.changePassword(getUserId(xUserId, userDetails), body.get("oldPassword"), body.get("newPassword"));
         return ResponseEntity.noContent().build();
     }
 
@@ -195,7 +201,15 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
-    private Long getUserId(UserDetails userDetails) {
+    private Long getUserId(Long xUserId, UserDetails userDetails) {
+        if (xUserId != null) {
+            return xUserId;
+        }
+
+        if (userDetails == null) {
+            throw new InvalidCredentialsException("Authentication required");
+        }
+        
         return userRepository.findByEmail(userDetails.getUsername())
                 .map(User::getId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));

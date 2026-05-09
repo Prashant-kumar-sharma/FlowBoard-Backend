@@ -1,0 +1,38 @@
+for starting SonarQube :- 
+backend :-
+
+set JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot
+set PATH=%JAVA_HOME%\bin;%PATH%
+cd C:\sonarcube\sonarqube-26.4.0.121862\bin\windows-x86-64
+StartSonar.bat
+
+
+
+After starting SonarQube, in the application part 
+
+mvn clean verify sonar:sonar `
+  "-Dsonar.host.url=http://localhost:9000" `
+  "-Dsonar.token=squ_7769533cf35b10f6ea04da7b64cb83db11a9ac90" `
+  "-Dmaven.test.failure.ignore=true"
+
+
+this will help us start our SonarQube server 
+
+frontend:-
+
+cd D:\Workspace\flowboard-frontend
+npm run test:coverage
+sonar-scanner -Dsonar.host.url=http://localhost:9000 -Dsonar.token=squ_7769533cf35b10f6ea04da7b64cb83db11a9ac90
+
+
+sonar-scanner -Dsonar.host.url=http://localhost:9000 -Dsonar.token=squ_7769533cf35b10f6ea04da7b64cb83db11a9ac90
+
+safer for powershell
+
+$env:SONAR_TOKEN="squ_7769533cf35b10f6ea04da7b64cb83db11a9ac90"
+sonar-scanner -D "sonar.host.url=http://localhost:9000" -D "sonar.token=$env:SONAR_TOKEN"
+
+
+
+
+

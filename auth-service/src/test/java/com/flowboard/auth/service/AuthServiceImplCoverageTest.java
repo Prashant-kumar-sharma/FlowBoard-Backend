@@ -20,6 +20,7 @@ import com.flowboard.auth.repository.UserRepository;
 import com.flowboard.auth.security.JwtUtil;
 import com.flowboard.auth.service.AuthOtpEmailService;
 import com.flowboard.auth.service.PaymentCleanupClient;
+import com.flowboard.auth.service.PaymentEntitlementClient;
 import com.flowboard.auth.service.impl.AuthServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -72,6 +73,9 @@ class AuthServiceImplCoverageTest {
     @Mock
     private PaymentCleanupClient paymentCleanupClient;
 
+    @Mock
+    private PaymentEntitlementClient paymentEntitlementClient;
+
     @InjectMocks
     private AuthServiceImpl authService;
 
@@ -103,6 +107,15 @@ class AuthServiceImplCoverageTest {
                 .build();
 
         lenient().when(jwtUtil.generateToken(anyMap(), any())).thenReturn("jwt-token");
+        lenient().when(paymentEntitlementClient.getEntitlement(any())).thenAnswer(invocation -> {
+            Long userId = invocation.getArgument(0);
+            com.flowboard.auth.dto.response.PaymentEntitlementResponse response =
+                    new com.flowboard.auth.dto.response.PaymentEntitlementResponse();
+            response.setUserId(userId);
+            response.setPremium(false);
+            response.setPlanCode("FREE");
+            return response;
+        });
         ReflectionTestUtils.setField(authService, "otpExpirationMinutes", 10L);
         ReflectionTestUtils.setField(authService, "otpResendCooldownSeconds", 60L);
     }
@@ -248,8 +261,9 @@ class AuthServiceImplCoverageTest {
 
     @Test
     void requestLoginOtpFailsWhenEmailMissing() {
-        EmailOtpRequest request = new EmailOtpRequest();
+        LoginRequest request = new LoginRequest();
         request.setEmail("missing@test.com");
+        request.setPassword("Password1!");
 
         when(userRepository.findByEmail("missing@test.com")).thenReturn(Optional.empty());
 
@@ -336,8 +350,9 @@ class AuthServiceImplCoverageTest {
     @Test
     void requestLoginOtpRejectsSuspendedUser() {
         memberUser.setIsActive(false);
-        EmailOtpRequest request = new EmailOtpRequest();
+        LoginRequest request = new LoginRequest();
         request.setEmail(memberUser.getEmail());
+        request.setPassword("Password1!");
 
         when(userRepository.findByEmail(memberUser.getEmail())).thenReturn(Optional.of(memberUser));
 

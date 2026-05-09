@@ -22,6 +22,8 @@ public class UserResponse {
     private User.Role role;
     private User.AuthProvider provider;
     private Boolean isActive;
+    private Boolean premium;
+    private String planCode;
     private LocalDateTime createdAt;
 
     public static UserResponse from(User user) {
@@ -35,6 +37,8 @@ public class UserResponse {
                 .role(user.getRole())
                 .provider(user.getProvider())
                 .isActive(user.getIsActive())
+                .premium(false)
+                .planCode("FREE")
                 .createdAt(user.getCreatedAt())
                 .build();
     }

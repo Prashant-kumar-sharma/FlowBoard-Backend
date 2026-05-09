@@ -94,9 +94,9 @@ class AuthControllerTest {
     @Test
     void requestLoginOtpReturnsOk() {
         OtpChallengeResponse response = OtpChallengeResponse.builder().message("sent").expiresInSeconds(600).build();
-        when(authService.requestLoginOtp(org.mockito.ArgumentMatchers.any(EmailOtpRequest.class))).thenReturn(response);
+        when(authService.requestLoginOtp(org.mockito.ArgumentMatchers.any(LoginRequest.class))).thenReturn(response);
 
-        assertThat(controller.requestLoginOtp(new EmailOtpRequest()).getBody()).isEqualTo(response);
+        assertThat(controller.requestLoginOtp(new LoginRequest()).getBody()).isEqualTo(response);
     }
 
     @Test
@@ -137,7 +137,7 @@ class AuthControllerTest {
     void logoutPassesBearerTokenToService() {
         when(request.getHeader("Authorization")).thenReturn("Bearer abc");
 
-        assertThat(controller.logout(userDetails, request).getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(controller.logout(null, userDetails, request).getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
         verify(authService).logout(1L, "abc");
     }
 
@@ -145,7 +145,7 @@ class AuthControllerTest {
     void logoutUsesEmptyTokenWhenHeaderIsMissing() {
         when(request.getHeader("Authorization")).thenReturn(null);
 
-        controller.logout(userDetails, request);
+        controller.logout(null, userDetails, request);
 
         verify(authService).logout(1L, "");
     }
@@ -163,7 +163,7 @@ class AuthControllerTest {
         UserResponse response = UserResponse.builder().id(1L).email("alice@test.com").build();
         when(authService.getProfile(1L)).thenReturn(response);
 
-        assertThat(controller.getProfile(userDetails).getBody()).isEqualTo(response);
+        assertThat(controller.getProfile(null, userDetails).getBody()).isEqualTo(response);
     }
 
     @Test
@@ -172,12 +172,12 @@ class AuthControllerTest {
         UserResponse response = UserResponse.builder().id(1L).username("alice").build();
         when(authService.updateProfile(1L, requestBody)).thenReturn(response);
 
-        assertThat(controller.updateProfile(userDetails, requestBody).getBody()).isEqualTo(response);
+        assertThat(controller.updateProfile(null, userDetails, requestBody).getBody()).isEqualTo(response);
     }
 
     @Test
     void changePasswordDelegatesToService() {
-        assertThat(controller.changePassword(userDetails, Map.of("oldPassword", "old", "newPassword", "new"))
+        assertThat(controller.changePassword(null, userDetails, Map.of("oldPassword", "old", "newPassword", "new"))
                 .getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
         verify(authService).changePassword(1L, "old", "new");
@@ -226,7 +226,7 @@ class AuthControllerTest {
                 .roles("MEMBER")
                 .build();
 
-        assertThatThrownBy(() -> controller.getProfile(missingUser))
+        assertThatThrownBy(() -> controller.getProfile(null, missingUser))
                 .hasMessageContaining("User not found");
     }
 }

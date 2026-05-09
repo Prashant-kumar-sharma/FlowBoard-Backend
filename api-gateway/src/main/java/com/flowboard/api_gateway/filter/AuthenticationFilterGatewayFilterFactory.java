@@ -17,7 +17,6 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 import java.util.Set;
 
 @Slf4j
@@ -39,22 +38,15 @@ public class AuthenticationFilterGatewayFilterFactory extends AbstractGatewayFil
             "/api/v1/lists/board/",
             "/api/v1/cards/list/",
             "/api/v1/cards/board/",
-            "/api/v1/auth/users/"
+            "/api/v1/auth/users/",
+            "/api/v1/files/"
     );
 
-    private static final ParameterizedTypeReference<Map<String, Object>> USER_RESPONSE_TYPE =
-            new ParameterizedTypeReference<>() {};
-
     private final JwtUtil jwtUtil;
-    private final WebClient webClient;
 
-    @Value("${auth.service.internal-base-url:http://localhost:8081/api/v1/auth/internal}")
-    private String authServiceInternalBaseUrl;
-
-    public AuthenticationFilterGatewayFilterFactory(JwtUtil jwtUtil, WebClient.Builder webClientBuilder) {
+    public AuthenticationFilterGatewayFilterFactory(JwtUtil jwtUtil) {
         super(Object.class);
         this.jwtUtil = jwtUtil;
-        this.webClient = webClientBuilder.build();
     }
 
     @Override
@@ -86,26 +78,20 @@ public class AuthenticationFilterGatewayFilterFactory extends AbstractGatewayFil
                 return onError(exchange, "JWT token is missing userId claim", HttpStatus.UNAUTHORIZED);
             }
             
-            return loadUser(userId).flatMap(user -> {
-                if (!isUserActive(user)) {
-                    return onError(exchange, "Account is suspended", HttpStatus.FORBIDDEN, "SUSPENDED");
-                }
+            ServerHttpRequest modifiedRequest = exchange.getRequest().mutate()
+                    .header("X-User-Email", email)
+                    .header("X-User-Id", String.valueOf(userId))
+                    .header("X-User-Role", role != null ? role : "MEMBER")
+                    .build();
 
-                ServerHttpRequest modifiedRequest = exchange.getRequest().mutate()
-                        .header("X-User-Email", email)
-                        .header("X-User-Id", String.valueOf(userId))
-                        .header("X-User-Role", role != null ? role : "MEMBER")
-                        .build();
-
-                return chain.filter(exchange.mutate().request(modifiedRequest).build());
-            }).onErrorResume(ex -> {
-                log.error("Failed to validate account status for userId={}: {}", userId, ex.getMessage());
-                return onError(exchange, "Could not verify account status", HttpStatus.UNAUTHORIZED);
-            });
+            return chain.filter(exchange.mutate().request(modifiedRequest).build());
         };
     }
 
     private boolean shouldSkipAuthentication(ServerHttpRequest request, String path) {
+        if (HttpMethod.OPTIONS.equals(request.getMethod())) {
+            return true;
+        }
         return matchesAny(path, AUTH_WHITELIST) || isPublicGetRequest(request, path);
     }
 
@@ -121,32 +107,11 @@ public class AuthenticationFilterGatewayFilterFactory extends AbstractGatewayFil
         return authHeader != null && authHeader.startsWith("Bearer ");
     }
 
-    private boolean isUserActive(Map<String, Object> user) {
-        Object activeValue = user.get("isActive");
-        return activeValue instanceof Boolean active
-                ? active
-                : Boolean.parseBoolean(String.valueOf(activeValue));
-    }
-
     private Mono<Void> onError(ServerWebExchange exchange, String err, HttpStatus httpStatus) {
-        return onError(exchange, err, httpStatus, null);
-    }
-
-    private Mono<Void> onError(ServerWebExchange exchange, String err, HttpStatus httpStatus, String accountStatus) {
         log.error("Authentication error: {}", err);
         exchange.getResponse().setStatusCode(httpStatus);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
-        if (accountStatus != null) {
-            exchange.getResponse().getHeaders().add("X-Account-Status", accountStatus);
-        }
         byte[] body = ("{\"message\":\"" + err + "\"}").getBytes(StandardCharsets.UTF_8);
         return exchange.getResponse().writeWith(Mono.just(exchange.getResponse().bufferFactory().wrap(body)));
-    }
-
-    private Mono<Map<String, Object>> loadUser(Long userId) {
-        return webClient.get()
-                .uri(authServiceInternalBaseUrl + "/users/" + userId)
-                .retrieve()
-                .bodyToMono(USER_RESPONSE_TYPE);
     }
 }

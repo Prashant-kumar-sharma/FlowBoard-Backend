@@ -23,6 +23,7 @@ import com.flowboard.auth.security.JwtUtil;
 import com.flowboard.auth.service.AuthOtpEmailService;
 import com.flowboard.auth.service.AuthService;
 import com.flowboard.auth.service.PaymentCleanupClient;
+import com.flowboard.auth.service.PaymentEntitlementClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -60,6 +61,7 @@ public class AuthServiceImpl implements AuthService {
     private final AuthEventProducer authEventProducer;
     private final AuthOtpEmailService authOtpEmailService;
     private final PaymentCleanupClient paymentCleanupClient;
+    private final PaymentEntitlementClient paymentEntitlementClient;
 
     @Value("${app.otp.expiration-minutes:10}")
     private long otpExpirationMinutes;
@@ -105,8 +107,7 @@ public class AuthServiceImpl implements AuthService {
                 AuthOtp.Purpose.REGISTRATION,
                 request.getFullName(),
                 request.getUsername(),
-                passwordEncoder.encode(request.getPassword())
-        );
+                passwordEncoder.encode(request.getPassword()));
         authOtpEmailService.sendOtpEmail(normalizeEmail(request.getEmail()), "registration", otp);
         return otpChallenge("Verification code sent to your email.");
     }
@@ -116,7 +117,8 @@ public class AuthServiceImpl implements AuthService {
         String normalizedEmail = normalizeEmail(request.getEmail());
         AuthOtp otp = validateOtp(normalizedEmail, request.getOtp(), AuthOtp.Purpose.REGISTRATION);
 
-        if (otp.getPendingFullName() == null || otp.getPendingUsername() == null || otp.getPendingPasswordHash() == null) {
+        if (otp.getPendingFullName() == null || otp.getPendingUsername() == null
+                || otp.getPendingPasswordHash() == null) {
             throw new InvalidOperationException("Registration details expired. Please request a new code.");
         }
         if (userRepository.existsByEmail(normalizedEmail)) {
@@ -162,16 +164,33 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public OtpChallengeResponse requestLoginOtp(EmailOtpRequest request) {
+    public OtpChallengeResponse requestLoginOtp(LoginRequest request) {
         User user = userRepository.findByEmail(normalizeEmail(request.getEmail()))
                 .orElseThrow(() -> new ResourceNotFoundException("No account found for: " + request.getEmail()));
+
         if (!Boolean.TRUE.equals(user.getIsActive())) {
             throw new InvalidOperationException("Your account is suspended. Please contact an administrator.");
         }
 
+        // Validate password BEFORE sending OTP
+        validateCredentials(user, request.getPassword());
+
         String otp = createOtp(user.getEmail(), AuthOtp.Purpose.LOGIN, null, null, null);
         authOtpEmailService.sendOtpEmail(user.getEmail(), "sign in", otp);
-        return otpChallenge("Sign-in code sent to your email.");
+        return otpChallenge("Verification code sent to your email.");
+    }
+
+    private void validateCredentials(User user, String password) {
+        if (user.getPasswordHash() == null) {
+             // If user has no password (e.g. OAuth only), they might need to set one or use Google
+             throw new InvalidOperationException("This account does not have a password set. Please use Google Sign-In.");
+        }
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(user.getEmail(), password));
+        } catch (BadCredentialsException e) {
+            throw new InvalidCredentialsException("Invalid email or password");
+        }
     }
 
     @Override
@@ -228,7 +247,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(readOnly = true)
     public UserResponse getProfile(Long userId) {
-        return UserResponse.from(findById(userId));
+        return toUserResponse(findById(userId));
     }
 
     @Override
@@ -249,7 +268,7 @@ public class AuthServiceImpl implements AuthService {
         if (request.getAvatarUrl() != null) {
             user.setAvatarUrl(request.getAvatarUrl());
         }
-        return UserResponse.from(userRepository.save(user));
+        return toUserResponse(userRepository.save(user));
     }
 
     @Override
@@ -315,7 +334,7 @@ public class AuthServiceImpl implements AuthService {
             ensureNotLastActivePlatformAdmin(user, "demote the last active platform admin");
         }
         user.setRole(requestedRole);
-        return UserResponse.from(userRepository.save(user));
+        return toUserResponse(userRepository.save(user));
     }
 
     @Override
@@ -323,20 +342,20 @@ public class AuthServiceImpl implements AuthService {
     public List<UserResponse> searchUsers(String query) {
         return userRepository.searchByFullNameOrUsername(query)
                 .stream()
-                .map(UserResponse::from)
+                .map(this::toUserResponse)
                 .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<UserResponse> getAllUsers() {
-        return userRepository.findAll().stream().map(UserResponse::from).toList();
+        return userRepository.findAll().stream().map(this::toUserResponse).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public UserResponse getUserById(Long userId) {
-        return UserResponse.from(findById(userId));
+        return toUserResponse(findById(userId));
     }
 
     @Override
@@ -344,7 +363,7 @@ public class AuthServiceImpl implements AuthService {
     public UserResponse getUserByUsername(String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND_PREFIX + username));
-        return UserResponse.from(user);
+        return toUserResponse(user);
     }
 
     private User findById(Long id) {
@@ -384,8 +403,16 @@ public class AuthServiceImpl implements AuthService {
     private AuthResponse buildAuthResponse(User user) {
         return AuthResponse.builder()
                 .accessToken(tokenFor(user))
-                .user(UserResponse.from(user))
+                .user(toUserResponse(user))
                 .build();
+    }
+
+    private UserResponse toUserResponse(User user) {
+        UserResponse response = UserResponse.from(user);
+        var entitlement = paymentEntitlementClient.getEntitlement(user.getId());
+        response.setPremium(entitlement.isPremium());
+        response.setPlanCode(entitlement.getPlanCode());
+        return response;
     }
 
     private OtpChallengeResponse otpChallenge(String message) {
@@ -395,7 +422,8 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
 
-    private String createOtp(String email, AuthOtp.Purpose purpose, String pendingFullName, String pendingUsername, String pendingPasswordHash) {
+    private String createOtp(String email, AuthOtp.Purpose purpose, String pendingFullName, String pendingUsername,
+            String pendingPasswordHash) {
         String normalizedEmail = normalizeEmail(email);
         LocalDateTime now = LocalDateTime.now();
 
@@ -428,7 +456,8 @@ public class AuthServiceImpl implements AuthService {
 
     private AuthOtp validateOtp(String email, String otp, AuthOtp.Purpose purpose) {
         AuthOtp authOtp = authOtpRepository.findTopByEmailAndPurposeOrderByCreatedAtDesc(email, purpose)
-                .orElseThrow(() -> new InvalidOperationException("No active verification code found. Please request a new code."));
+                .orElseThrow(() -> new InvalidOperationException(
+                        "No active verification code found. Please request a new code."));
 
         if (authOtp.getConsumedAt() != null) {
             throw new InvalidOperationException("This verification code has already been used.");
@@ -466,7 +495,8 @@ public class AuthServiceImpl implements AuthService {
                 .password(user.getPasswordHash() != null ? user.getPasswordHash() : "")
                 .authorities(auths)
                 .build();
-        return jwtUtil.generateToken(java.util.Map.of("userId", user.getId(), "role", user.getRole().name()), userDetails);
+        return jwtUtil.generateToken(java.util.Map.of("userId", user.getId(), "role", user.getRole().name()),
+                userDetails);
     }
 
     private List<SimpleGrantedAuthority> buildAuthorities(User.Role role) {

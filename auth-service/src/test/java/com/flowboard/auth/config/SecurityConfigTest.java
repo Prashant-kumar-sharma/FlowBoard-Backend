@@ -64,6 +64,11 @@ class SecurityConfigTest {
         String adminStats() {
             return "admin";
         }
+
+        @GetMapping("/login/oauth2/probe")
+        String oauthCallbackProbe() {
+            return "oauth";
+        }
     }
 
     @Autowired
@@ -153,6 +158,12 @@ class SecurityConfigTest {
         mockMvc.perform(options("/api/v1/auth/login")
                         .header("Origin", "http://localhost:4200")
                         .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void oauthCallbackPathIsAccessibleWithoutAuthentication() throws Exception {
+        mockMvc.perform(get("/login/oauth2/probe"))
                 .andExpect(status().isOk());
     }
 }

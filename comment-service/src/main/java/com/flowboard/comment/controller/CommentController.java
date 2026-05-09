@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -99,7 +100,9 @@ public class CommentController {
         try {
             java.nio.file.Path path = fileStorageService.load(filename);
             org.springframework.core.io.Resource resource = new org.springframework.core.io.UrlResource(path.toUri());
+            String contentType = java.nio.file.Files.probeContentType(path);
             return ResponseEntity.ok()
+                    .contentType(contentType != null ? MediaType.parseMediaType(contentType) : MediaType.APPLICATION_OCTET_STREAM)
                     .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
                     .body(resource);
         } catch (Exception e) {

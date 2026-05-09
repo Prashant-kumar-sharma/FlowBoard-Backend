@@ -155,7 +155,18 @@ public class PaymentService {
                 subscription.getActivatedAt()
         ));
 
-        return paymentQueryService.getSummary(userId);
+        return PaymentSummaryResponse.builder()
+                .userId(userId)
+                .premium(true)
+                .planCode(PREMIUM_PLAN_CODE)
+                .planName(PREMIUM_PLAN_NAME)
+                .workspaceLimit(null)
+                .memberLimit(null)
+                .premiumAmountPaise(order.getAmountPaise())
+                .currency(order.getCurrency())
+                .razorpayKeyId(paymentQueryService.getRazorpayKeyId())
+                .activatedAt(subscription.getActivatedAt())
+                .build();
     }
 
     public PaymentEntitlementResponse getEntitlement(Long userId) {

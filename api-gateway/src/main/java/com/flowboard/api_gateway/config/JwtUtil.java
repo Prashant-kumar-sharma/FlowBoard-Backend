@@ -23,7 +23,15 @@ public class JwtUtil {
     }
 
     public Long extractUserId(String token) {
-        return extractClaim(token, claims -> claims.get("userId", Long.class));
+        return extractClaim(token, claims -> {
+            Object userId = claims.get("userId");
+            if (userId instanceof Number) {
+                return ((Number) userId).longValue();
+            } else if (userId instanceof String) {
+                return Long.parseLong((String) userId);
+            }
+            return null;
+        });
     }
 
     public String extractUserRole(String token) {

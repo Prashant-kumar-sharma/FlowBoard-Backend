@@ -18,7 +18,7 @@ public interface AuthService {
     AuthResponse login(LoginRequest request);
     OtpChallengeResponse requestRegistrationOtp(RegisterRequest request);
     AuthResponse verifyRegistrationOtp(VerifyOtpRequest request);
-    OtpChallengeResponse requestLoginOtp(EmailOtpRequest request);
+    OtpChallengeResponse requestLoginOtp(LoginRequest request);
     AuthResponse verifyLoginOtp(VerifyOtpRequest request);
     OtpChallengeResponse requestPasswordResetOtp(EmailOtpRequest request);
     void confirmPasswordReset(ResetPasswordOtpConfirmRequest request);

@@ -9,9 +9,9 @@ spring:
   boot:
     admin:
       client:
-        url: http://localhost:9090
-        username: admin
-        password: admin123
+        url: ${ADMIN_SERVER_URL:http://localhost:9090}
+        username: ${ADMIN_USERNAME:admin}
+        password: ${ADMIN_PASSWORD:admin123}
 
   cloud:
     gateway:
@@ -21,7 +21,7 @@ spring:
       globalcors:
         cors-configurations:
           "[/**]":
-            allowed-origins: "http://localhost:4200"
+            allowed-origins: "${ALLOWED_ORIGINS:http://localhost:4200}"
             allowed-methods:
               - GET
               - POST
@@ -32,6 +32,10 @@ spring:
             allowed-headers: "*"
             allow-credentials: true
         add-to-simple-url-handler-mapping: true
+
+      httpclient:
+        connect-timeout: 5000
+        response-timeout: 15s
 
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
@@ -98,6 +102,17 @@ spring:
                 name: paymentCircuitBreaker
                 fallbackUri: forward:/fallback/payment
 
+        - id: label-service-route
+          uri: lb://label-service
+          predicates:
+            - Path=/api/v1/boards/*/labels, /api/v1/boards/*/labels/**, /api/v1/labels/**, /api/v1/cards/*/labels, /api/v1/cards/*/labels/**, /api/v1/cards/*/checklists, /api/v1/cards/*/checklists/**, /api/v1/checklists/**, /api/v1/checklist-items/**
+          filters:
+            - AuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: labelCircuitBreaker
+                fallbackUri: forward:/fallback/label
+
         - id: board-service-route
           uri: lb://board-service
           predicates:
@@ -123,24 +138,13 @@ spring:
         - id: comment-service-route
           uri: lb://comment-service
           predicates:
-            - Path=/api/v1/cards/*/comments, /api/v1/cards/*/comments/**, /api/v1/comments/**, /api/v1/cards/*/attachments, /api/v1/cards/*/attachments/**, /api/v1/attachments/**
+            - Path=/api/v1/cards/*/comments, /api/v1/cards/*/comments/**, /api/v1/comments/**, /api/v1/cards/*/attachments, /api/v1/cards/*/attachments/**, /api/v1/attachments/**, /api/v1/files/**
           filters:
             - AuthenticationFilter
             - name: CircuitBreaker
               args:
                 name: commentCircuitBreaker
                 fallbackUri: forward:/fallback/comment
-
-        - id: label-service-route
-          uri: lb://label-service
-          predicates:
-            - Path=/api/v1/boards/*/labels, /api/v1/boards/*/labels/**, /api/v1/labels/**, /api/v1/cards/*/labels, /api/v1/cards/*/labels/**, /api/v1/cards/*/checklists, /api/v1/cards/*/checklists/**, /api/v1/checklists/**, /api/v1/checklist-items/**
-          filters:
-            - AuthenticationFilter
-            - name: CircuitBreaker
-              args:
-                name: labelCircuitBreaker
-                fallbackUri: forward:/fallback/label
 
         - id: card-service-route
           uri: lb://card-service
@@ -168,7 +172,7 @@ spring:
         # 🔥 SWAGGER DOC ROUTES (FIXED)
         # =========================
         - id: auth-service-docs
-          uri: http://localhost:8081
+          uri: lb://auth-service
           predicates:
             - Path=/v3/api-docs/auth-service/**, /v3/api-docs/auth-service
           filters:
@@ -254,7 +258,7 @@ resilience4j:
         waitDurationInOpenState: 30s
         failureRateThreshold: 50
         slowCallRateThreshold: 50
-        slowCallDurationThreshold: 3s
+        slowCallDurationThreshold: 15s
         automaticTransitionFromOpenToHalfOpenEnabled: true
     instances:
       authCircuitBreaker:

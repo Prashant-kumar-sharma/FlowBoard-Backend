@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -29,10 +30,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         try {
+            String requestPath = request.getRequestURI();
+            if (requestPath.startsWith("/oauth2/") || requestPath.startsWith("/login/oauth2/")) {
+                log.info("Processing OAuth request path in auth-service: {}", requestPath);
+            }
+
             String jwt = parseJwt(request);
             if (jwt != null) {
                 String username = jwtUtil.extractUsername(jwt);
-                if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                Authentication currentAuthentication = SecurityContextHolder.getContext().getAuthentication();
+                if (username != null && shouldAuthenticateWithJwt(currentAuthentication, username)) {
                     UserDetails userDetails = userDetailsService.loadUserByUsername(username);
                     if (userDetails.isEnabled() && userDetails.isAccountNonLocked() && jwtUtil.validateToken(jwt, userDetails)) {
                         UsernamePasswordAuthenticationToken authToken =
@@ -47,6 +54,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             log.error("Cannot set user authentication: {}", e.getMessage());
         }
         filterChain.doFilter(request, response);
+    }
+
+    private boolean shouldAuthenticateWithJwt(Authentication currentAuthentication, String username) {
+        if (currentAuthentication == null) {
+            return true;
+        }
+
+        // Prefer the bearer token for API requests even when an OAuth2 session already exists.
+        // This keeps JWT-secured endpoints from inheriting OAuth-only authorities from the session.
+        return !currentAuthentication.isAuthenticated() || !username.equals(currentAuthentication.getName());
     }
 
     private String parseJwt(HttpServletRequest request) {

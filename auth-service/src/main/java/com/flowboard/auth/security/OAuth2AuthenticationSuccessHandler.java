@@ -34,8 +34,28 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
         String email = oAuth2User.getAttribute("email");
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found after OAuth2 login"));
+        if (email == null || email.isBlank()) {
+            log.error("Google OAuth success but email is missing from attributes!");
+            response.sendRedirect(frontendUrl + "/auth/login?oauthError=Google+did+not+provide+an+email+address");
+            return;
+        }
+
+        User user = userRepository.findByEmail(email).orElseGet(() -> {
+            log.info("Registering new user via OAuth2: {}", email);
+            String name = oAuth2User.getAttribute("name");
+            if (name == null || name.isBlank()) {
+                name = email.split("@")[0];
+            }
+            User newUser = User.builder()
+                    .email(email)
+                    .fullName(name)
+                    .username(email.split("@")[0] + "_" + (System.currentTimeMillis() % 10000))
+                    .provider(User.AuthProvider.GOOGLE)
+                    .role(User.Role.MEMBER)
+                    .isActive(true)
+                    .build();
+            return userRepository.save(newUser);
+        });
 
         var userDetails = org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())

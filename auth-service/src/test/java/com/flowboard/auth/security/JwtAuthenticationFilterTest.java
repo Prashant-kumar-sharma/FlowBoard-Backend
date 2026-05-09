@@ -9,9 +9,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -73,7 +78,7 @@ class JwtAuthenticationFilterTest {
     @Test
     void filterSkipsWhenContextAlreadyHasAuthentication() throws Exception {
         SecurityContextHolder.getContext().setAuthentication(
-                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("existing", null)
+                new UsernamePasswordAuthenticationToken("existing", null)
         );
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer token");
@@ -83,6 +88,35 @@ class JwtAuthenticationFilterTest {
         filter.doFilter(request, new MockHttpServletResponse(), filterChain);
 
         verify(userDetailsService, never()).loadUserByUsername(any());
+        verify(filterChain).doFilter(any(), any());
+    }
+
+    @Test
+    void filterReplacesOAuthSessionAuthenticationWhenBearerTokenIsPresent() throws Exception {
+        var oauthUser = new DefaultOAuth2User(
+                List.of(() -> "OAUTH2_USER"),
+                Map.of("email", "alice@test.com"),
+                "email"
+        );
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(oauthUser, null, oauthUser.getAuthorities())
+        );
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        User user = (User) User.withUsername("alice@test.com").password("pw").roles("MEMBER").build();
+
+        when(jwtUtil.extractUsername("token")).thenReturn("alice@test.com");
+        when(userDetailsService.loadUserByUsername("alice@test.com")).thenReturn(user);
+        when(jwtUtil.validateToken("token", user)).thenReturn(true);
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
+                .extracting(Object::toString)
+                .contains("ROLE_MEMBER");
         verify(filterChain).doFilter(any(), any());
     }
 

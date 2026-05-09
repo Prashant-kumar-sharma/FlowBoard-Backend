@@ -72,6 +72,7 @@ public class SecurityConfig {
                         "/api/v1/auth/reset-password/request-otp",
                         "/api/v1/auth/reset-password/confirm",
                         "/oauth2/**",
+                        "/login/oauth2/**",
                         "/api/v1/auth/oauth2/**"
                 ).permitAll()
 
@@ -107,9 +108,16 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
             .authenticationProvider(authenticationProvider())
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+            .exceptionHandling(e -> e.authenticationEntryPoint((request, response, authException) -> {
+                response.sendRedirect(allowedOrigins.split(",")[0] + "/auth/login?oauthError=Authentication+failed");
+            }))
             .oauth2Login(oauth2 -> oauth2
                 .userInfoEndpoint(u -> u.userService(oAuth2UserService))
                 .successHandler(oAuth2SuccessHandler)
+                .failureHandler((request, response, exception) -> {
+                    String errorMsg = java.net.URLEncoder.encode(exception.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
+                    response.sendRedirect(allowedOrigins.split(",")[0] + "/auth/login?oauthError=" + errorMsg);
+                })
             );
 
         return http.build();

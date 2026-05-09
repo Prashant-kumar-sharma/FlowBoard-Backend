@@ -1,0 +1,432 @@
+version: '3.9'
+
+services:
+
+  # ── Infrastructure ────────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: flowboard-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - flowboard-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: flowboard-redis
+    command: redis-server
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - flowboard-net
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: flowboard-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - flowboard-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: flowboard-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://127.0.0.1:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092" ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks:
+      - flowboard-net
+
+  sonarqube:
+    image: sonarqube:community
+    container_name: flowboard-sonarqube
+    ports:
+      - "9000:9000"
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_logs:/opt/sonarqube/logs
+    profiles:
+      - tools
+    networks:
+      - flowboard-net
+
+  # ── Infrastructure Microservices ──────────────────────────────────────────
+  eureka-server:
+    image: prashar85211/flowboard-eureka-server
+    build:
+      context: .
+      dockerfile: eureka-server/Dockerfile
+    container_name: flowboard-eureka
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8761/actuator/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - flowboard-net
+
+  admin-server:
+    image: prashar85211/flowboard-admin-server
+    build:
+      context: .
+      dockerfile: admin-server/Dockerfile
+    container_name: flowboard-admin
+    ports:
+      - "9090:9090"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - flowboard-net
+
+  api-gateway:
+    image: prashar85211/flowboard-api-gateway
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: flowboard-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      ADMIN_SERVER_URL: http://admin-server:9090
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:4200}
+      AUTH_SERVICE_INTERNAL_BASE_URL: http://auth-service:8081/api/v1/auth/internal
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      workspace-service:
+        condition: service_started
+      board-service:
+        condition: service_started
+      list-service:
+        condition: service_started
+      card-service:
+        condition: service_started
+      comment-service:
+        condition: service_started
+      label-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+    networks:
+      - flowboard-net
+
+  # ── Application Microservices ─────────────────────────────────────────────
+  auth-service:
+    image: prashar85211/flowboard-auth-service
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    container_name: flowboard-auth
+    ports:
+      - "8081:8081"
+    env_file: .env
+    environment:
+      DB_HOST: mysql
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      PAYMENT_SERVICE_BASE_URL: http://payment-service:8089/api/v1/internal/payments
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      ADMIN_SERVER_URL: http://admin-server:9090
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+      payment-service:
+        condition: service_started
+    networks:
+      - flowboard-net
+
+  payment-service:
+    image: prashar85211/flowboard-payment-service
+    build:
+      context: .
+      dockerfile: payment-service/Dockerfile
+    container_name: flowboard-payment
+    ports:
+      - "8089:8089"
+    env_file: .env
+    environment:
+      DB_HOST: mysql
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      ADMIN_SERVER_URL: http://admin-server:9090
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - flowboard-net
+
+  workspace-service:
+    image: prashar85211/flowboard-workspace-service
+    build:
+      context: .
+      dockerfile: workspace-service/Dockerfile
+    container_name: flowboard-workspace
+    ports:
+      - "8082:8082"
+    env_file: .env
+    environment:
+      DB_HOST: mysql
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      PAYMENT_SERVICE_BASE_URL: http://payment-service:8089/api/v1/internal/payments
+      BOARD_SERVICE_BASE_URL: http://board-service:8083/api/v1/boards/internal
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      ADMIN_SERVER_URL: http://admin-server:9090
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      payment-service:
+        condition: service_started
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - flowboard-net
+
+  board-service:
+    image: prashar85211/flowboard-board-service
+    build:
+      context: .
+      dockerfile: board-service/Dockerfile
+    container_name: flowboard-board
+    ports:
+      - "8083:8083"
+    env_file: .env
+    environment:
+      DB_HOST: mysql
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      ADMIN_SERVER_URL: http://admin-server:9090
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - flowboard-net
+
+  list-service:
+    image: prashar85211/flowboard-list-service
+    build:
+      context: .
+      dockerfile: list-service/Dockerfile
+    container_name: flowboard-list
+    ports:
+      - "8084:8084"
+    env_file: .env
+    environment:
+      DB_HOST: mysql
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      ADMIN_SERVER_URL: http://admin-server:9090
+      CARD_SERVICE_BASE_URL: http://card-service:8085/api/v1/cards/internal
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - flowboard-net
+
+  card-service:
+    image: prashar85211/flowboard-card-service
+    build:
+      context: .
+      dockerfile: card-service/Dockerfile
+    container_name: flowboard-card
+    ports:
+      - "8085:8085"
+    env_file: .env
+    environment:
+      DB_HOST: mysql
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      ADMIN_SERVER_URL: http://admin-server:9090
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - flowboard-net
+
+  comment-service:
+    image: prashar85211/flowboard-comment-service
+    build:
+      context: .
+      dockerfile: comment-service/Dockerfile
+    container_name: flowboard-comment
+    ports:
+      - "8086:8086"
+    env_file: .env
+    environment:
+      DB_HOST: mysql
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      ADMIN_SERVER_URL: http://admin-server:9090
+    volumes:
+      - comment_uploads:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - flowboard-net
+
+  label-service:
+    image: prashar85211/flowboard-label-service
+    build:
+      context: .
+      dockerfile: label-service/Dockerfile
+    container_name: flowboard-label
+    ports:
+      - "8087:8087"
+    env_file: .env
+    environment:
+      DB_HOST: mysql
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      ADMIN_SERVER_URL: http://admin-server:9090
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - flowboard-net
+
+  notification-service:
+    image: prashar85211/flowboard-notification-service
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
+    container_name: flowboard-notification
+    ports:
+      - "8088:8088"
+    env_file: .env
+    environment:
+      DB_HOST: mysql
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AUTH_SERVICE_INTERNAL_BASE_URL: http://auth-service:8081/api/v1/auth/internal
+      CARD_SERVICE_BASE_URL: http://card-service:8085/api/v1/cards
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      ADMIN_SERVER_URL: http://admin-server:9090
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - flowboard-net
+
+  # ── Angular Frontend ──────────────────────────────────────────────────────
+  frontend:
+    image: prashar85211/flowboard-frontend
+    build:
+      context: ../flowboard-frontend
+      dockerfile: Dockerfile
+    container_name: flowboard-frontend
+    ports:
+      - "4200:80"
+    depends_on:
+      - api-gateway
+      - auth-service
+      - workspace-service
+      - board-service
+      - list-service
+      - card-service
+      - comment-service
+      - label-service
+      - notification-service
+      - payment-service
+    networks:
+      - flowboard-net
+
+volumes:
+  mysql_data:
+  redis_data:
+  comment_uploads:
+  sonarqube_data:
+  sonarqube_logs:
+
+networks:
+  flowboard-net:
+    driver: bridge

@@ -30,6 +30,8 @@ public class NotificationKafkaConsumer {
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate = new RestTemplate();
 
+    private record CardDetails(Long cardId, Long boardId, String title) {}
+
     @Value("${auth.service.internal-base-url:http://localhost:8081/api/v1/auth/internal}")
     private String authServiceUrl;
 
@@ -42,17 +44,25 @@ public class NotificationKafkaConsumer {
         log.info("Received mention event: {}", payload);
         try {
             String username = (String) payload.get("username");
-            String actorId = payload.get("actorId").toString();
-            String cardId = payload.get("cardId").toString();
-            String cardName = resolveCardName(cardId);
+            Long actorId = Long.valueOf(payload.get("actorId").toString());
+            CardDetails cardDetails = resolveCardDetails(payload.get("cardId").toString());
+            String cardName = "\"" + cardDetails.title() + "\"";
 
             Map<String, Object> user = restTemplate.getForObject(buildAuthServiceUri(USERS_SEGMENT, USERNAME_SEGMENT, username), Map.class);
             if (user != null) {
                 Long userId = Long.valueOf(user.get("id").toString());
                 String email = (String) user.get(EMAIL_FIELD);
-                String actorName = resolveUserName(Long.valueOf(actorId));
+                String actorName = resolveUserName(actorId);
 
-                saveNotification(userId, "New Mention", actorName + " mentioned you in " + cardName, Notification.NotificationType.MENTION);
+                saveNotification(
+                        userId,
+                        actorId,
+                        "New Mention",
+                        actorName + " mentioned you in " + cardName,
+                        Notification.NotificationType.MENTION,
+                        cardDetails.cardId(),
+                        "CARD",
+                        buildBoardCardDeepLink(cardDetails.boardId(), cardDetails.cardId()));
                 emailService.sendMentionNotification(email, actorName, cardName);
             }
         } catch (Exception e) {
@@ -66,14 +76,23 @@ public class NotificationKafkaConsumer {
         log.info("Received card assignment event: {}", payload);
         try {
             Long assigneeId = Long.valueOf(payload.get("assigneeId").toString());
-            String cardId = payload.get("cardId").toString();
-            String cardName = resolveCardName(cardId);
+            Long actorId = Long.valueOf(payload.get("actorId").toString());
+            CardDetails cardDetails = resolveCardDetails(payload.get("cardId").toString());
+            String cardName = "\"" + cardDetails.title() + "\"";
 
             Map<String, Object> user = restTemplate.getForObject(buildAuthServiceUri(USERS_SEGMENT, assigneeId.toString()), Map.class);
             if (user != null) {
                 String email = (String) user.get(EMAIL_FIELD);
 
-                saveNotification(assigneeId, "New Assignment", "You have been assigned to " + cardName, Notification.NotificationType.ASSIGNMENT);
+                saveNotification(
+                        assigneeId,
+                        actorId,
+                        "New Assignment",
+                        "You have been assigned to " + cardName,
+                        Notification.NotificationType.ASSIGNMENT,
+                        cardDetails.cardId(),
+                        "CARD",
+                        buildBoardCardDeepLink(cardDetails.boardId(), cardDetails.cardId()));
                 emailService.sendAssignmentNotification(email, cardName);
             }
         } catch (Exception e) {
@@ -97,8 +116,9 @@ public class NotificationKafkaConsumer {
             if (invitedUser != null) {
                 String email = (String) invitedUser.get(EMAIL_FIELD);
 
-                saveNotification(invitedUserId, "Workspace Invitation",
-                        inviterName + " invited you to workspace \"" + workspaceName + "\" as " + role, Notification.NotificationType.BROADCAST);
+                saveNotification(invitedUserId, invitedByUserId, "Workspace Invitation",
+                        inviterName + " invited you to workspace \"" + workspaceName + "\" as " + role,
+                        Notification.NotificationType.BROADCAST, null, null, null);
                 emailService.sendWorkspaceInvitation(email, workspaceName, inviterName, role);
             }
         } catch (Exception e) {
@@ -122,8 +142,9 @@ public class NotificationKafkaConsumer {
             if (invitedUser != null) {
                 String email = (String) invitedUser.get(EMAIL_FIELD);
 
-                saveNotification(invitedUserId, "Board Invitation",
-                        inviterName + " added you to board \"" + boardName + "\" as " + role, Notification.NotificationType.BROADCAST);
+                saveNotification(invitedUserId, invitedByUserId, "Board Invitation",
+                        inviterName + " added you to board \"" + boardName + "\" as " + role,
+                        Notification.NotificationType.BROADCAST, null, null, null);
                 emailService.sendBoardInvitation(email, boardName, inviterName, role);
             }
         } catch (Exception e) {
@@ -150,8 +171,9 @@ public class NotificationKafkaConsumer {
                 String email = (String) user.get(EMAIL_FIELD);
                 String fullName = user.get(FULL_NAME_FIELD) != null ? user.get(FULL_NAME_FIELD).toString() : "FlowBoard member";
 
-                saveNotification(userId, "Premium activated",
-                        "Your FlowBoard Premium plan is active and your receipt is on its way.", Notification.NotificationType.BROADCAST);
+                saveNotification(userId, null, "Premium activated",
+                        "Your FlowBoard Premium plan is active and your receipt is on its way.",
+                        Notification.NotificationType.BROADCAST, null, null, null);
                 emailService.sendPremiumActivatedEmail(email, fullName, planName, activatedAt);
                 emailService.sendInvoiceEmail(email, new EmailService.InvoiceEmailDetails(
                         fullName,
@@ -179,17 +201,17 @@ public class NotificationKafkaConsumer {
             String status = payload.get("status").toString();
 
             if ("SUSPENDED".equalsIgnoreCase(status)) {
-                saveNotification(userId, "Account suspended",
+                saveNotification(userId, null, "Account suspended",
                         "Your FlowBoard account has been suspended. Contact support or your platform admin if you think this is a mistake.",
-                        Notification.NotificationType.BROADCAST);
+                        Notification.NotificationType.BROADCAST, null, null, null);
                 emailService.sendAccountSuspendedEmail(email, fullName);
                 return;
             }
 
             if ("RESTORED".equalsIgnoreCase(status)) {
-                saveNotification(userId, "Account restored",
+                saveNotification(userId, null, "Account restored",
                         "Your FlowBoard account has been restored and you can sign in again.",
-                        Notification.NotificationType.BROADCAST);
+                        Notification.NotificationType.BROADCAST, null, null, null);
                 emailService.sendAccountRestoredEmail(email, fullName);
             }
         } catch (Exception e) {
@@ -205,13 +227,24 @@ public class NotificationKafkaConsumer {
         }
     }
 
-    private void saveNotification(Long recipientId, String title, String message, Notification.NotificationType type) {
+    private void saveNotification(Long recipientId,
+                                  Long actorId,
+                                  String title,
+                                  String message,
+                                  Notification.NotificationType type,
+                                  Long relatedId,
+                                  String relatedType,
+                                  String deepLinkUrl) {
         Notification n = new Notification();
         n.setRecipientId(recipientId);
+        n.setActorId(actorId);
         n.setTitle(title);
         n.setMessage(message);
         n.setIsRead(false);
         n.setType(type);
+        n.setRelatedId(relatedId);
+        n.setRelatedType(relatedType);
+        n.setDeepLinkUrl(deepLinkUrl);
         notificationRepository.save(n);
     }
 
@@ -227,16 +260,28 @@ public class NotificationKafkaConsumer {
         return "A teammate";
     }
 
-    private String resolveCardName(String cardId) {
+    private CardDetails resolveCardDetails(String cardId) {
         try {
             Map<String, Object> card = restTemplate.getForObject(buildCardServiceUri(cardId), Map.class);
             if (card != null && card.get("title") != null) {
-                return "\"" + card.get("title") + "\"";
+                Long resolvedCardId = Long.valueOf(card.get("id").toString());
+                Long boardId = Long.valueOf(card.get("boardId").toString());
+                String title = card.get("title").toString();
+                return new CardDetails(resolvedCardId, boardId, title);
             }
         } catch (Exception e) {
             log.warn("Could not resolve card name for cardId={}", cardId);
         }
-        return "Card #" + cardId;
+        Long fallbackCardId = Long.valueOf(cardId);
+        return new CardDetails(fallbackCardId, null, "Card #" + cardId);
+    }
+
+    private String buildBoardCardDeepLink(Long boardId, Long cardId) {
+        if (boardId == null || cardId == null) {
+            return null;
+        }
+
+        return "/board/" + boardId + "?cardId=" + cardId;
     }
 
     private String buildAuthServiceUri(String... pathSegments) {
