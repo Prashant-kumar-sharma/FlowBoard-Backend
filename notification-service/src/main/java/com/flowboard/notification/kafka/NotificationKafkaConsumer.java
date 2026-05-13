@@ -2,16 +2,15 @@ package com.flowboard.notification.kafka;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flowboard.notification.client.AuthUserClient;
+import com.flowboard.notification.client.CardLookupClient;
 import com.flowboard.notification.entity.Notification;
 import com.flowboard.notification.repository.NotificationRepository;
 import com.flowboard.notification.service.EmailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -28,15 +27,10 @@ public class NotificationKafkaConsumer {
     private final NotificationRepository notificationRepository;
     private final EmailService emailService;
     private final ObjectMapper objectMapper;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final AuthUserClient authUserClient;
+    private final CardLookupClient cardLookupClient;
 
     private record CardDetails(Long cardId, Long boardId, String title) {}
-
-    @Value("${auth.service.internal-base-url:http://localhost:8081/api/v1/auth/internal}")
-    private String authServiceUrl;
-
-    @Value("${card.service.base-url:http://localhost:8085/api/v1/cards}")
-    private String cardServiceUrl;
 
     @KafkaListener(topics = "flowboard.mention.notification", groupId = "notification-group")
     public void handleMention(String rawPayload) {
@@ -48,7 +42,7 @@ public class NotificationKafkaConsumer {
             CardDetails cardDetails = resolveCardDetails(payload.get("cardId").toString());
             String cardName = "\"" + cardDetails.title() + "\"";
 
-            Map<String, Object> user = restTemplate.getForObject(buildAuthServiceUri(USERS_SEGMENT, USERNAME_SEGMENT, username), Map.class);
+            Map<String, Object> user = authUserClient.getUserByUsername(username);
             if (user != null) {
                 Long userId = Long.valueOf(user.get("id").toString());
                 String email = (String) user.get(EMAIL_FIELD);
@@ -80,7 +74,7 @@ public class NotificationKafkaConsumer {
             CardDetails cardDetails = resolveCardDetails(payload.get("cardId").toString());
             String cardName = "\"" + cardDetails.title() + "\"";
 
-            Map<String, Object> user = restTemplate.getForObject(buildAuthServiceUri(USERS_SEGMENT, assigneeId.toString()), Map.class);
+            Map<String, Object> user = authUserClient.getUserById(assigneeId);
             if (user != null) {
                 String email = (String) user.get(EMAIL_FIELD);
 
@@ -110,7 +104,7 @@ public class NotificationKafkaConsumer {
             String workspaceName = (String) payload.get("workspaceName");
             String role = (String) payload.get("role");
 
-            Map<String, Object> invitedUser = restTemplate.getForObject(buildAuthServiceUri(USERS_SEGMENT, invitedUserId.toString()), Map.class);
+            Map<String, Object> invitedUser = authUserClient.getUserById(invitedUserId);
             String inviterName = resolveUserName(invitedByUserId);
 
             if (invitedUser != null) {
@@ -136,7 +130,7 @@ public class NotificationKafkaConsumer {
             String boardName = (String) payload.get("boardName");
             String role = (String) payload.get("role");
 
-            Map<String, Object> invitedUser = restTemplate.getForObject(buildAuthServiceUri(USERS_SEGMENT, invitedUserId.toString()), Map.class);
+            Map<String, Object> invitedUser = authUserClient.getUserById(invitedUserId);
             String inviterName = resolveUserName(invitedByUserId);
 
             if (invitedUser != null) {
@@ -166,7 +160,7 @@ public class NotificationKafkaConsumer {
             String providerPaymentId = (String) payload.get("providerPaymentId");
             LocalDateTime activatedAt = LocalDateTime.parse(payload.get("activatedAt").toString());
 
-            Map<String, Object> user = restTemplate.getForObject(buildAuthServiceUri(USERS_SEGMENT, userId.toString()), Map.class);
+            Map<String, Object> user = authUserClient.getUserById(userId);
             if (user != null) {
                 String email = (String) user.get(EMAIL_FIELD);
                 String fullName = user.get(FULL_NAME_FIELD) != null ? user.get(FULL_NAME_FIELD).toString() : "FlowBoard member";
@@ -250,7 +244,7 @@ public class NotificationKafkaConsumer {
 
     private String resolveUserName(Long userId) {
         try {
-            Map<String, Object> user = restTemplate.getForObject(buildAuthServiceUri(USERS_SEGMENT, userId.toString()), Map.class);
+            Map<String, Object> user = authUserClient.getUserById(userId);
             if (user != null && user.get(FULL_NAME_FIELD) != null) {
                 return (String) user.get(FULL_NAME_FIELD);
             }
@@ -262,7 +256,7 @@ public class NotificationKafkaConsumer {
 
     private CardDetails resolveCardDetails(String cardId) {
         try {
-            Map<String, Object> card = restTemplate.getForObject(buildCardServiceUri(cardId), Map.class);
+            Map<String, Object> card = cardLookupClient.getCardById(cardId);
             if (card != null && card.get("title") != null) {
                 Long resolvedCardId = Long.valueOf(card.get("id").toString());
                 Long boardId = Long.valueOf(card.get("boardId").toString());
@@ -282,17 +276,5 @@ public class NotificationKafkaConsumer {
         }
 
         return "/board/" + boardId + "?cardId=" + cardId;
-    }
-
-    private String buildAuthServiceUri(String... pathSegments) {
-        return UriComponentsBuilder.fromHttpUrl(authServiceUrl)
-                .pathSegment(pathSegments)
-                .toUriString();
-    }
-
-    private String buildCardServiceUri(String cardId) {
-        return UriComponentsBuilder.fromHttpUrl(cardServiceUrl)
-                .pathSegment(cardId)
-                .toUriString();
     }
 }

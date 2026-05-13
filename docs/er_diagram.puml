@@ -1,0 +1,56 @@
+@startuml
+title ER Diagram: FlowBoard Core Entities
+
+entity "workspaces" as workspaces <<table>> {
+  *id : BIGINT <<PK>>
+  --
+  name : VARCHAR(255)
+  description : VARCHAR(255)
+  owner_id : BIGINT
+  visibility : VARCHAR(50)
+  logo_url : VARCHAR(255)
+  created_at : DATETIME
+  updated_at : DATETIME
+}
+
+entity "workspace_members" as workspace_members <<table>> {
+  *id : BIGINT <<PK>>
+  --
+  workspace_id : BIGINT <<FK>>
+  user_id : BIGINT
+  role : VARCHAR(50)
+  joined_at : DATETIME
+}
+
+entity "boards" as boards <<table>> {
+  *id : BIGINT <<PK>>
+  --
+  workspace_id : BIGINT <<FK>>
+  name : VARCHAR(255)
+  created_at : DATETIME
+}
+
+entity "lists" as lists <<table>> {
+  *id : BIGINT <<PK>>
+  --
+  board_id : BIGINT <<FK>>
+  name : VARCHAR(255)
+  position : INT
+}
+
+entity "cards" as cards <<table>> {
+  *id : BIGINT <<PK>>
+  --
+  list_id : BIGINT <<FK>>
+  title : VARCHAR(255)
+  description : TEXT
+  position : INT
+  created_at : DATETIME
+}
+
+workspaces "1" -- "0..*" workspace_members : has members
+workspaces "1" -- "0..*" boards : contains
+boards "1" -- "0..*" lists : contains
+lists "1" -- "0..*" cards : contains
+
+@enduml

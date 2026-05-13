@@ -1,0 +1,432 @@
+
+
+@startuml
+title Auth Service Class Diagram 
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+' ══════════════ ENTITIES ══════════════
+
+class User <<Entity>> {
+    -Long id
+    -String fullName
+    -String email
+    -String username
+    -String passwordHash
+    -Role role
+    -String avatarUrl
+    -String bio
+    -AuthProvider provider
+    -String providerId
+    -Boolean isActive
+    -LocalDateTime createdAt
+    -LocalDateTime updatedAt
+    +isMember() boolean
+    +isBoardAdmin() boolean
+    +isPlatformAdmin() boolean
+    +isSystemAccount() boolean
+}
+
+enum Role {
+    MEMBER
+    BOARD_ADMIN
+    PLATFORM_ADMIN
+    SYSTEM
+}
+
+enum AuthProvider {
+    LOCAL
+    GOOGLE
+    GITHUB
+}
+
+class AuthOtp <<Entity>> {
+    -Long id
+    -String email
+    -Purpose purpose
+    -String otpHash
+    -LocalDateTime expiresAt
+    -Integer attemptCount
+    -LocalDateTime consumedAt
+    -String pendingFullName
+    -String pendingUsername
+    -String pendingPasswordHash
+    -LocalDateTime createdAt
+}
+
+enum Purpose {
+    REGISTRATION
+    LOGIN
+    RESET_PASSWORD
+}
+
+User --> Role : role
+User --> AuthProvider : provider
+AuthOtp --> Purpose : purpose
+
+' ══════════════ REQUEST DTOs ══════════════
+
+class RegisterRequest <<DTO>> {
+    -String fullName
+    -String email
+    -String username
+    -String password
+}
+
+class LoginRequest <<DTO>> {
+    -String email
+    -String password
+}
+
+class EmailOtpRequest <<DTO>> {
+    -String email
+}
+
+class VerifyOtpRequest <<DTO>> {
+    -String email
+    -String otp
+}
+
+class ResetPasswordRequest <<DTO>> {
+    -String email
+    -String newPassword
+}
+
+class ResetPasswordOtpConfirmRequest <<DTO>> {
+    -String email
+    -String otp
+    -String newPassword
+}
+
+class UpdateProfileRequest <<DTO>> {
+    -String fullName
+    -String username
+    -String avatarUrl
+    -String bio
+}
+
+' ══════════════ RESPONSE DTOs ══════════════
+
+class AuthResponse <<DTO>> {
+    -String accessToken
+    -String tokenType
+    -UserResponse user
+}
+
+class UserResponse <<DTO>> {
+    -Long id
+    -String fullName
+    -String email
+    -String username
+    -String avatarUrl
+    -String bio
+    -Role role
+    -AuthProvider provider
+    -Boolean isActive
+    -LocalDateTime createdAt
+    +{static} from(User user) : UserResponse
+}
+
+class OtpChallengeResponse <<DTO>> {
+    -String message
+}
+
+' ── Response DTO compositions ──
+AuthResponse *-- UserResponse : user
+UserResponse ..> User : maps from
+UserResponse ..> Role : exposes
+UserResponse ..> AuthProvider : exposes
+
+' ══════════════ REPOSITORIES ══════════════
+
+interface UserRepository {
+    +findByEmail(String) : Optional<User>
+    +findByUsername(String) : Optional<User>
+    +existsByEmail(String) : boolean
+    +existsByUsername(String) : boolean
+    +findAllByRole(Role) : List<User>
+    +countByRoleAndIsActiveTrue(Role) : long
+    +searchByFullNameOrUsername(String) : List<User>
+    +findByProviderAndProviderId(AuthProvider, String) : Optional<User>
+}
+
+interface AuthOtpRepository {
+    +findTopByEmailAndPurposeOrderByCreatedAtDesc(String, Purpose) : Optional<AuthOtp>
+}
+
+UserRepository ..> User : manages
+AuthOtpRepository ..> AuthOtp : manages
+
+' ══════════════ SERVICE LAYER ══════════════
+
+interface AuthService {
+    +register(RegisterRequest) : AuthResponse
+    +login(LoginRequest) : AuthResponse
+    +requestRegistrationOtp(RegisterRequest) : OtpChallengeResponse
+    +verifyRegistrationOtp(VerifyOtpRequest) : AuthResponse
+    +requestLoginOtp(EmailOtpRequest) : OtpChallengeResponse
+    +verifyLoginOtp(VerifyOtpRequest) : AuthResponse
+    +requestPasswordResetOtp(EmailOtpRequest) : OtpChallengeResponse
+    +confirmPasswordReset(ResetPasswordOtpConfirmRequest) : void
+    +resetPassword(ResetPasswordRequest) : void
+    +logout(Long, String) : void
+    +refreshToken(String) : AuthResponse
+    +getProfile(Long) : UserResponse
+    +updateProfile(Long, UpdateProfileRequest) : UserResponse
+    +changePassword(Long, String, String) : void
+    +deactivateAccount(Long) : void
+    +deactivateAccount(Long, Long) : void
+    +reactivateAccount(Long) : void
+    +deleteUser(Long) : void
+    +deleteUser(Long, Long) : void
+    +changeRole(Long, String) : UserResponse
+    +changeRole(Long, Long, String) : UserResponse
+    +searchUsers(String) : List<UserResponse>
+    +getAllUsers() : List<UserResponse>
+    +getUserById(Long) : UserResponse
+    +getUserByUsername(String) : UserResponse
+}
+
+' ── DTO ←→ Service dependencies ──
+AuthService ..> RegisterRequest : <<accepts>>
+AuthService ..> LoginRequest : <<accepts>>
+AuthService ..> EmailOtpRequest : <<accepts>>
+AuthService ..> VerifyOtpRequest : <<accepts>>
+AuthService ..> ResetPasswordRequest : <<accepts>>
+AuthService ..> ResetPasswordOtpConfirmRequest : <<accepts>>
+AuthService ..> UpdateProfileRequest : <<accepts>>
+AuthService ..> AuthResponse : <<returns>>
+AuthService ..> UserResponse : <<returns>>
+AuthService ..> OtpChallengeResponse : <<returns>>
+
+class AuthServiceImpl <<Service>> {
+    -UserRepository userRepository
+    -AuthOtpRepository otpRepository
+    -PasswordEncoder passwordEncoder
+    -JwtUtil jwtUtil
+    -UserDetailsServiceImpl userDetailsService
+    -AuthOtpEmailService otpEmailService
+    -AuthEventProducer authEventProducer
+    -PaymentCleanupClient paymentCleanupClient
+}
+
+AuthServiceImpl ..|> AuthService
+
+class AuthOtpEmailService <<Service>> {
+    -JavaMailSender mailSender
+    -String fromAddress
+    +sendOtpEmail(String, String, String) : void
+    +sendEmail(String, String, String) : void
+    -wrap(String, String) : String
+}
+
+class PaymentCleanupClient <<Service>> {
+    -RestTemplate restTemplate
+    +deleteByUserId(Long) : void
+}
+
+AuthServiceImpl --> UserRepository
+AuthServiceImpl --> AuthOtpRepository
+AuthServiceImpl --> JwtUtil
+AuthServiceImpl --> AuthOtpEmailService
+AuthServiceImpl --> AuthEventProducer
+AuthServiceImpl --> PaymentCleanupClient
+
+' ══════════════ SECURITY ══════════════
+
+class JwtUtil <<Component>> {
+    -String jwtSecret
+    -long jwtExpirationMs
+    +generateToken(UserDetails) : String
+    +generateToken(Map, UserDetails) : String
+    +validateToken(String, UserDetails) : boolean
+    +extractUsername(String) : String
+    +extractExpiration(String) : Date
+    +extractClaim(String, Function) : T
+    -extractAllClaims(String) : Claims
+    -isTokenExpired(String) : boolean
+    -getSigningKey() : SecretKey
+}
+
+class JwtAuthenticationFilter <<Component>> {
+    -JwtUtil jwtUtil
+    -UserDetailsService userDetailsService
+    #doFilterInternal(HttpServletRequest, HttpServletResponse, FilterChain) : void
+    -parseJwt(HttpServletRequest) : String
+}
+
+class UserDetailsServiceImpl <<Service>> {
+    -UserRepository userRepository
+    +loadUserByUsername(String) : UserDetails
+}
+
+class OAuth2UserServiceImpl <<Service>> {
+    -UserRepository userRepository
+    +loadUser(OAuth2UserRequest) : OAuth2User
+    -processOAuth2User(String, OAuth2User) : void
+    -generateUsername(String) : String
+}
+
+class OAuth2AuthenticationSuccessHandler <<Component>> {
+    -JwtUtil jwtUtil
+    -UserRepository userRepository
+    -String frontendUrl
+    +onAuthenticationSuccess(HttpServletRequest, HttpServletResponse, Authentication) : void
+}
+
+JwtAuthenticationFilter --> JwtUtil : validates tokens
+JwtAuthenticationFilter --> UserDetailsServiceImpl : loads user
+OAuth2UserServiceImpl --> UserRepository : upserts user
+OAuth2AuthenticationSuccessHandler --> JwtUtil : generates token
+OAuth2AuthenticationSuccessHandler --> UserRepository : resolves user
+UserDetailsServiceImpl --> UserRepository : queries
+
+' ══════════════ KAFKA ══════════════
+
+class AuthEventProducer <<Component>> {
+    -KafkaTemplate<String, Object> kafkaTemplate
+    +sendAccountSuspended(User) : void
+    +sendAccountRestored(User) : void
+    -sendAccountStatusChanged(User, String) : void
+}
+
+AuthEventProducer ..> User : publishes events
+
+' ══════════════ CONTROLLERS ══════════════
+
+class AuthController <<RestController>> {
+    -AuthService authService
+    -UserRepository userRepository
+    +register(RegisterRequest) : ResponseEntity<AuthResponse>
+    +requestRegistrationOtp(RegisterRequest) : ResponseEntity<OtpChallengeResponse>
+    +verifyRegistrationOtp(VerifyOtpRequest) : ResponseEntity<AuthResponse>
+    +login(LoginRequest) : ResponseEntity<AuthResponse>
+    +requestLoginOtp(EmailOtpRequest) : ResponseEntity<OtpChallengeResponse>
+    +verifyLoginOtp(VerifyOtpRequest) : ResponseEntity<AuthResponse>
+    +resetPassword(ResetPasswordRequest) : ResponseEntity<Void>
+    +requestPasswordResetOtp(EmailOtpRequest) : ResponseEntity<OtpChallengeResponse>
+    +confirmPasswordReset(ResetPasswordOtpConfirmRequest) : ResponseEntity<Void>
+    +logout(UserDetails, HttpServletRequest) : ResponseEntity<Void>
+    +refresh(Map) : ResponseEntity<AuthResponse>
+    +getProfile(UserDetails) : ResponseEntity<UserResponse>
+    +updateProfile(UserDetails, UpdateProfileRequest) : ResponseEntity<UserResponse>
+    +changePassword(UserDetails, Map) : ResponseEntity<Void>
+    +searchUsers(String) : ResponseEntity<List<UserResponse>>
+    +getAllUsers() : ResponseEntity<List<UserResponse>>
+    +getUserById(Long) : ResponseEntity<UserResponse>
+    +deactivate(Long) : ResponseEntity<Void>
+    +reactivate(Long) : ResponseEntity<Void>
+    +deleteUser(Long) : ResponseEntity<Void>
+}
+
+class AdminController <<RestController>> {
+    -AuthService authService
+    -UserRepository userRepository
+    +listAllUsers() : ResponseEntity<List<UserResponse>>
+    +changeRole(UserDetails, Long, Map) : ResponseEntity<UserResponse>
+    +suspend(UserDetails, Long) : ResponseEntity<Void>
+    +restore(Long) : ResponseEntity<Void>
+    +deleteUser(UserDetails, Long) : ResponseEntity<Void>
+    +stats() : ResponseEntity<Map>
+}
+
+class InternalUserController <<RestController>> {
+    -AuthService authService
+    +getUserById(Long) : ResponseEntity<UserResponse>
+    +getUserByUsername(String) : ResponseEntity<UserResponse>
+}
+
+AuthController --> AuthService : delegates
+AdminController --> AuthService : delegates
+InternalUserController --> AuthService : delegates
+
+' ── Controller ←→ DTO dependencies ──
+AuthController ..> RegisterRequest : <<receives>>
+AuthController ..> LoginRequest : <<receives>>
+AuthController ..> EmailOtpRequest : <<receives>>
+AuthController ..> VerifyOtpRequest : <<receives>>
+AuthController ..> ResetPasswordRequest : <<receives>>
+AuthController ..> ResetPasswordOtpConfirmRequest : <<receives>>
+AuthController ..> UpdateProfileRequest : <<receives>>
+AuthController ..> AuthResponse : <<responds>>
+AuthController ..> UserResponse : <<responds>>
+AuthController ..> OtpChallengeResponse : <<responds>>
+
+AdminController ..> UserResponse : <<responds>>
+InternalUserController ..> UserResponse : <<responds>>
+
+' ══════════════ EXCEPTIONS ══════════════
+
+class ErrorResponse <<DTO>> {
+    -int status
+    -String error
+    -String message
+    -Map<String, String> fieldErrors
+    -LocalDateTime timestamp
+}
+
+class DuplicateResourceException <<Exception>>
+class InvalidCredentialsException <<Exception>>
+class InvalidOperationException <<Exception>>
+class ResourceNotFoundException <<Exception>>
+
+DuplicateResourceException --|> RuntimeException
+InvalidCredentialsException --|> RuntimeException
+InvalidOperationException --|> RuntimeException
+ResourceNotFoundException --|> RuntimeException
+
+class GlobalExceptionHandler <<ControllerAdvice>> {
+    +handleNotFound(ResourceNotFoundException) : ResponseEntity<ErrorResponse>
+    +handleDuplicate(DuplicateResourceException) : ResponseEntity<ErrorResponse>
+    +handleInvalidCredentials(InvalidCredentialsException) : ResponseEntity<ErrorResponse>
+    +handleInvalidOperation(InvalidOperationException) : ResponseEntity<ErrorResponse>
+    +handleValidation(MethodArgumentNotValidException) : ResponseEntity<ErrorResponse>
+    +handleGeneral(Exception) : ResponseEntity<ErrorResponse>
+    -build(HttpStatus, String) : ResponseEntity<ErrorResponse>
+}
+
+GlobalExceptionHandler ..> ResourceNotFoundException : <<catches>>
+GlobalExceptionHandler ..> DuplicateResourceException : <<catches>>
+GlobalExceptionHandler ..> InvalidCredentialsException : <<catches>>
+GlobalExceptionHandler ..> InvalidOperationException : <<catches>>
+GlobalExceptionHandler ..> ErrorResponse : <<returns>>
+
+' ══════════════ CONFIG ══════════════
+
+class SecurityConfig <<Configuration>> {
+    -JwtAuthenticationFilter jwtAuthFilter
+    -UserDetailsService userDetailsService
+    -OAuth2UserServiceImpl oAuth2UserService
+    -OAuth2AuthenticationSuccessHandler oAuth2SuccessHandler
+    -String allowedOrigins
+    +securityFilterChain(HttpSecurity) : SecurityFilterChain
+    +corsConfigurationSource() : CorsConfigurationSource
+    +authenticationProvider() : AuthenticationProvider
+    +authenticationManager(AuthenticationConfiguration) : AuthenticationManager
+    +passwordEncoder() : PasswordEncoder
+}
+
+SecurityConfig --> JwtAuthenticationFilter : registers filter
+SecurityConfig --> UserDetailsServiceImpl : configures auth provider
+SecurityConfig --> OAuth2UserServiceImpl : configures OAuth2
+SecurityConfig --> OAuth2AuthenticationSuccessHandler : configures success handler
+
+class DataInitializer <<Component>> {
+    -UserRepository userRepository
+    -PasswordEncoder passwordEncoder
+    -String adminEmail
+    -String adminPassword
+    -String adminFullName
+    +run(String...) : void
+}
+
+DataInitializer ..|> CommandLineRunner : implements
+DataInitializer --> UserRepository : seeds admin user
+DataInitializer ..> User : creates PLATFORM_ADMIN
+
+class OpenApiConfig <<Configuration>> {
+    +openApi() : OpenAPI
+}
+
+@enduml

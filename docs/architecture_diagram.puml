@@ -1,0 +1,66 @@
+@startuml
+title Architecture Diagram - FlowBoard System
+
+node "Frontend Layer" {
+  [Angular Application] <<frontend>>
+}
+
+node "Infrastructure & Routing" {
+  [API Gateway] <<gateway>>
+  [Eureka Server] <<registry>>
+  [Admin Server] <<monitor>>
+}
+
+node "Microservices Layer" {
+  [Auth Service] <<service>>
+  [Workspace Service] <<service>>
+  [Payment Service] <<service>>
+  [Board Service] <<service>>
+  [List Service] <<service>>
+  [Card Service] <<service>>
+  [Comment Service] <<service>>
+  [Label Service] <<service>>
+  [Notification Service] <<service>>
+}
+
+database "Data Storage & Caching" {
+  [MySQL 8.0] <<database>>
+  [Redis 7] <<cache>>
+}
+
+queue "Message Broker" {
+  [Apache Kafka] <<messaging>>
+  [Zookeeper] <<coordinator>>
+}
+
+[Angular Application] --> [API Gateway] : HTTP/REST
+[API Gateway] ..> [Eureka Server] : Resolve Routes
+[API Gateway] --> [Auth Service] : Route
+[API Gateway] --> [Workspace Service] : Route
+[API Gateway] --> [Board Service] : Route
+[API Gateway] --> [Card Service] : Route
+
+[Auth Service] ..> [Eureka Server] : Register
+[Workspace Service] ..> [Eureka Server] : Register
+[Payment Service] ..> [Eureka Server] : Register
+[Card Service] ..> [Eureka Server] : Register
+[Notification Service] ..> [Eureka Server] : Register
+
+[Workspace Service] --> [Payment Service] : Sync HTTP/REST
+[Notification Service] --> [Auth Service] : Sync HTTP/REST
+[Notification Service] --> [Card Service] : Sync HTTP/REST
+
+[Auth Service] --> [MySQL 8.0] : Read/Write
+[Workspace Service] --> [MySQL 8.0] : Read/Write
+[Payment Service] --> [MySQL 8.0] : Read/Write
+[Card Service] --> [MySQL 8.0] : Read/Write
+
+[Auth Service] --> [Redis 7] : Session Cache
+[Workspace Service] --> [Redis 7] : Data Cache
+
+[Workspace Service] --> [Apache Kafka] : Publish Event
+[Card Service] --> [Apache Kafka] : Publish Event
+[Apache Kafka] --> [Notification Service] : Consume Event
+[Apache Kafka] - [Zookeeper]
+
+@enduml

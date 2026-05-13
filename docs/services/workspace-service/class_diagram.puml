@@ -1,0 +1,254 @@
+@startuml
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+' ══════════════ ENTITIES ══════════════
+
+class Workspace <<Entity>> {
+    -Long id
+    -String name
+    -String description
+    -Long ownerId
+    -Visibility visibility
+    -String logoUrl
+    -List<WorkspaceMember> members
+    -LocalDateTime createdAt
+    -LocalDateTime updatedAt
+}
+
+enum Visibility {
+    PUBLIC
+    PRIVATE
+}
+
+class WorkspaceMember <<Entity>> {
+    -Long id
+    -Workspace workspace
+    -Long userId
+    -MemberRole role
+    -LocalDateTime joinedAt
+}
+
+enum MemberRole {
+    ADMIN
+    MEMBER
+}
+
+class WorkspaceAuditEvent <<Entity>> {
+    -Long id
+    -Long workspaceId
+    -Long actorId
+    -String action
+    -String targetType
+    -String targetId
+    -String details
+    -LocalDateTime createdAt
+}
+
+Workspace --> Visibility : visibility
+Workspace "1" o-- "*" WorkspaceMember : members
+WorkspaceMember --> MemberRole : role
+WorkspaceMember --> Workspace : workspace
+
+' ══════════════ REQUEST DTOs ══════════════
+
+class CreateWorkspaceRequest <<DTO>> {
+    -String name
+    -String description
+    -String visibility
+    -String logoUrl
+}
+
+class AddMemberRequest <<DTO>> {
+    -Long userId
+    -String role
+}
+
+class UpdateRoleRequest <<DTO>> {
+    -String role
+}
+
+' ══════════════ RESPONSE DTOs ══════════════
+
+class WorkspaceResponse <<DTO>> {
+    -Long id
+    -String name
+    -String description
+    -Long ownerId
+    -String visibility
+    -String logoUrl
+    -List<MemberResponse> members
+    -LocalDateTime createdAt
+    -LocalDateTime updatedAt
+}
+
+class MemberResponse <<DTO>> {
+    -Long id
+    -Long userId
+    -String role
+    -LocalDateTime joinedAt
+}
+
+class WorkspaceAuditEventResponse <<DTO>> {
+    -Long id
+    -Long workspaceId
+    -Long actorId
+    -String action
+    -String targetType
+    -String targetId
+    -String details
+    -LocalDateTime createdAt
+}
+
+' ── Response DTO compositions ──
+WorkspaceResponse *-- MemberResponse : members
+WorkspaceResponse ..> Workspace : maps from
+MemberResponse ..> WorkspaceMember : maps from
+WorkspaceAuditEventResponse ..> WorkspaceAuditEvent : maps from
+
+' ══════════════ REPOSITORIES ══════════════
+
+interface WorkspaceRepository {
+    +findByOwnerId(Long) : List<Workspace>
+    +findByVisibility(Visibility) : List<Workspace>
+}
+
+interface WorkspaceMemberRepository {
+    +findByWorkspaceIdAndUserId(Long, Long) : Optional<WorkspaceMember>
+    +findByUserId(Long) : List<WorkspaceMember>
+    +existsByWorkspaceIdAndUserId(Long, Long) : boolean
+}
+
+interface WorkspaceAuditEventRepository {
+    +findAllByOrderByCreatedAtDesc() : List<WorkspaceAuditEvent>
+}
+
+WorkspaceRepository ..> Workspace : manages
+WorkspaceMemberRepository ..> WorkspaceMember : manages
+WorkspaceAuditEventRepository ..> WorkspaceAuditEvent : manages
+
+' ══════════════ SERVICE LAYER ══════════════
+
+interface WorkspaceService {
+    +create(Long, CreateWorkspaceRequest) : WorkspaceResponse
+    +getById(Long, Long) : WorkspaceResponse
+    +getByOwner(Long) : List<WorkspaceResponse>
+    +getByMember(Long) : List<WorkspaceResponse>
+    +getPublic() : List<WorkspaceResponse>
+    +getAll() : List<WorkspaceResponse>
+    +update(Long, Long, CreateWorkspaceRequest) : WorkspaceResponse
+    +delete(Long, Long) : void
+    +adminDelete(Long, Long) : void
+    +addMember(Long, Long, AddMemberRequest) : MemberResponse
+    +removeMember(Long, Long, Long) : void
+    +updateMemberRole(Long, Long, Long, String) : void
+    +getMembers(Long) : List<MemberResponse>
+    +getAuditEvents() : List<WorkspaceAuditEventResponse>
+}
+
+' ── DTO ←→ Service dependencies ──
+WorkspaceService ..> CreateWorkspaceRequest : <<accepts>>
+WorkspaceService ..> AddMemberRequest : <<accepts>>
+WorkspaceService ..> WorkspaceResponse : <<returns>>
+WorkspaceService ..> MemberResponse : <<returns>>
+WorkspaceService ..> WorkspaceAuditEventResponse : <<returns>>
+
+class WorkspaceServiceImpl <<Service>> {
+    -WorkspaceRepository workspaceRepository
+    -WorkspaceMemberRepository memberRepository
+    -WorkspaceAuditEventRepository auditRepository
+    -PaymentEntitlementClient paymentClient
+    -BoardCleanupClient boardCleanupClient
+}
+
+WorkspaceServiceImpl ..|> WorkspaceService
+WorkspaceServiceImpl --> WorkspaceRepository
+WorkspaceServiceImpl --> WorkspaceMemberRepository
+WorkspaceServiceImpl --> WorkspaceAuditEventRepository
+WorkspaceServiceImpl --> PaymentEntitlementClient
+WorkspaceServiceImpl --> BoardCleanupClient
+
+' ══════════════ HTTP CLIENTS ══════════════
+
+class PaymentEntitlementClient <<Service>> {
+    -RestTemplate restTemplate
+    +isPremium(Long) : boolean
+    +getMaxWorkspaces(Long) : int
+}
+
+class BoardCleanupClient <<Service>> {
+    -RestTemplate restTemplate
+    +deleteByWorkspaceId(Long, Long) : void
+}
+
+' ══════════════ CONTROLLER ══════════════
+
+class WorkspaceController <<RestController>> {
+    -WorkspaceService workspaceService
+    +create(CreateWorkspaceRequest, Long) : ResponseEntity<WorkspaceResponse>
+    +getById(Long, Long) : ResponseEntity<WorkspaceResponse>
+    +getMy(Long) : ResponseEntity<List<WorkspaceResponse>>
+    +getPublic() : ResponseEntity<List<WorkspaceResponse>>
+    +getAllForAdmin(String) : ResponseEntity<List<WorkspaceResponse>>
+    +update(Long, CreateWorkspaceRequest, Long) : ResponseEntity<WorkspaceResponse>
+    +delete(Long, Long) : ResponseEntity<Void>
+    +adminDelete(Long, Long, String) : ResponseEntity<Void>
+    +addMember(Long, AddMemberRequest, Long) : ResponseEntity<MemberResponse>
+    +removeMember(Long, Long, Long) : ResponseEntity<Void>
+    +updateRole(Long, Long, UpdateRoleRequest, Long) : ResponseEntity<Void>
+    +getMembers(Long) : ResponseEntity<List<MemberResponse>>
+    +getAuditEvents(String) : ResponseEntity<List<WorkspaceAuditEventResponse>>
+    -assertPlatformAdmin(String) : void
+}
+
+WorkspaceController --> WorkspaceService : delegates
+
+' ── Controller ←→ DTO dependencies ──
+WorkspaceController ..> CreateWorkspaceRequest : <<receives>>
+WorkspaceController ..> AddMemberRequest : <<receives>>
+WorkspaceController ..> UpdateRoleRequest : <<receives>>
+WorkspaceController ..> WorkspaceResponse : <<responds>>
+WorkspaceController ..> MemberResponse : <<responds>>
+WorkspaceController ..> WorkspaceAuditEventResponse : <<responds>>
+
+' ══════════════ EXCEPTIONS ══════════════
+
+class AccessDeniedException <<Exception>>
+class DuplicateResourceException <<Exception>>
+
+class PaymentRequiredException <<Exception>> {
+    -String limitType
+    -int limit
+    -int currentUsage
+    -String upgradePath
+    -Long ownerId
+    -Long workspaceId
+}
+
+class ResourceNotFoundException <<Exception>>
+class UnauthorizedException <<Exception>>
+
+AccessDeniedException --|> RuntimeException
+DuplicateResourceException --|> RuntimeException
+PaymentRequiredException --|> RuntimeException
+ResourceNotFoundException --|> RuntimeException
+UnauthorizedException --|> RuntimeException
+
+class GlobalExceptionHandler <<ControllerAdvice>> {
+    +handleNotFound(ResourceNotFoundException) : ResponseEntity
+    +handleDuplicate(DuplicateResourceException) : ResponseEntity
+    +handleForbidden(RuntimeException) : ResponseEntity
+    +handlePaymentRequired(PaymentRequiredException) : ResponseEntity
+    +handleBadRequest(IllegalArgumentException) : ResponseEntity
+    +handleGeneral(Exception) : ResponseEntity
+}
+
+GlobalExceptionHandler ..> ResourceNotFoundException : <<catches>>
+GlobalExceptionHandler ..> DuplicateResourceException : <<catches>>
+GlobalExceptionHandler ..> AccessDeniedException : <<catches>>
+GlobalExceptionHandler ..> UnauthorizedException : <<catches>>
+GlobalExceptionHandler ..> PaymentRequiredException : <<catches>>
+
+@enduml
+

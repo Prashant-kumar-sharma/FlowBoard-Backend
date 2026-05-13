@@ -1,0 +1,12 @@
+@startuml
+title Component Diagram: Label Service
+component "Label Service" {
+  [LabelController]
+  [LabelServiceImpl]
+}
+database "Label DB" {
+  [labels table]
+}
+[LabelController] --> [LabelServiceImpl]
+[LabelServiceImpl] --> [labels table]
+@enduml

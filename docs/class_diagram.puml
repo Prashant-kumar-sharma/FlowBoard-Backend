@@ -1,0 +1,76 @@
+@startuml
+title Class Diagram: Workspace Service (Core Module)
+
+package "com.flowboard.workspace" {
+    
+    package "controller" {
+        class WorkspaceController {
+            - workspaceService: WorkspaceService
+            + createWorkspace(dto: WorkspaceRequestDTO): ResponseEntity<WorkspaceResponseDTO>
+            + getWorkspace(id: Long): ResponseEntity<WorkspaceResponseDTO>
+        }
+    }
+
+    package "service" {
+        interface WorkspaceService {
+            + createWorkspace(dto: WorkspaceRequestDTO): WorkspaceResponseDTO
+            + getWorkspace(id: Long): WorkspaceResponseDTO
+        }
+
+        class WorkspaceServiceImpl {
+            - workspaceRepository: WorkspaceRepository
+            - paymentClient: PaymentServiceClient
+            - kafkaProducer: KafkaEventProducer
+            + createWorkspace(dto: WorkspaceRequestDTO): WorkspaceResponseDTO
+        }
+    }
+
+    package "repository" {
+        interface WorkspaceRepository <<JpaRepository>> {
+            + findByOwnerId(ownerId: Long): List<Workspace>
+        }
+    }
+
+    package "entity" {
+        class Workspace {
+            - id: Long
+            - name: String
+            - description: String
+            - ownerId: Long
+            - visibility: Visibility
+            - logoUrl: String
+            - createdAt: LocalDateTime
+            - updatedAt: LocalDateTime
+            + getId(): Long
+            + getName(): String
+        }
+        
+        class WorkspaceMember {
+            - id: Long
+            - userId: Long
+            - role: String
+            - joinedAt: LocalDateTime
+        }
+        
+        enum Visibility {
+            PUBLIC
+            PRIVATE
+        }
+    }
+
+    package "exception" {
+        class PaymentRequiredException {
+            + PaymentRequiredException(message: String)
+        }
+    }
+}
+
+WorkspaceController --> WorkspaceService : uses
+WorkspaceServiceImpl ..|> WorkspaceService : implements
+WorkspaceServiceImpl --> WorkspaceRepository : depends on
+WorkspaceServiceImpl --> PaymentRequiredException : throws
+WorkspaceRepository --> Workspace : manages
+Workspace "1" *-- "0..*" WorkspaceMember : contains
+Workspace --> Visibility : has
+
+@enduml

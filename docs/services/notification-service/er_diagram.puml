@@ -1,0 +1,11 @@
+@startuml
+title ER Diagram: Notification Service
+entity "notifications" as notif <<table>> {
+  *id : BIGINT <<PK>>
+  --
+  user_id : BIGINT
+  message : TEXT
+  is_read : BOOLEAN
+  created_at : DATETIME
+}
+@enduml

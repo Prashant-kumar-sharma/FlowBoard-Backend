@@ -1,0 +1,16 @@
+@startuml
+title ER Diagram: Workspace Service
+entity "workspaces" as ws <<table>> {
+  *id : BIGINT <<PK>>
+  --
+  name : VARCHAR(255)
+  owner_id : BIGINT
+}
+entity "workspace_members" as wsm <<table>> {
+  *id : BIGINT <<PK>>
+  --
+  workspace_id : BIGINT <<FK>>
+  user_id : BIGINT
+}
+ws "1" -- "0..*" wsm : has
+@enduml

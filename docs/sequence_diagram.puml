@@ -1,0 +1,40 @@
+@startuml
+title Sequence Diagram: Workspace Creation & Payment Verification
+
+actor User
+participant "Angular App" as Frontend <<frontend>>
+participant "API Gateway" as Gateway <<gateway>>
+participant "Workspace Service" as WorkspaceSvc <<service>>
+participant "Payment Service" as PaymentSvc <<service>>
+database "MySQL" as DB <<database>>
+queue "Kafka Broker" as Kafka <<messaging>>
+participant "Notification Service" as NotifSvc <<service>>
+
+User -> Frontend : Submit "Create Workspace"
+Frontend -> Gateway : POST /api/v1/workspaces (Bearer Token)
+Gateway -> WorkspaceSvc : Route Request
+
+activate WorkspaceSvc
+WorkspaceSvc -> PaymentSvc : GET /api/v1/internal/payments/status
+activate PaymentSvc
+PaymentSvc -> DB : Check subscription status
+DB --> PaymentSvc : Status = Active
+PaymentSvc --> WorkspaceSvc : 200 OK (Payment Valid)
+deactivate PaymentSvc
+
+WorkspaceSvc -> DB : Save new Workspace entity
+DB --> WorkspaceSvc : Workspace Created (ID)
+
+WorkspaceSvc -> Kafka : Publish WorkspaceCreatedEvent
+WorkspaceSvc --> Gateway : 201 Created (Workspace Data)
+deactivate WorkspaceSvc
+
+Gateway --> Frontend : 201 Created
+Frontend --> User : Display Dashboard
+
+Kafka -> NotifSvc : Consume WorkspaceCreatedEvent
+activate NotifSvc
+NotifSvc -> DB : Save Notification Log
+NotifSvc -> User : Dispatch Email/Push Alert
+deactivate NotifSvc
+@enduml

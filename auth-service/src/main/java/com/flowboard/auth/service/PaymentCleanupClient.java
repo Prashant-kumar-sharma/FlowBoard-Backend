@@ -1,26 +1,21 @@
 package com.flowboard.auth.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
 
 @Slf4j
 @Component
 public class PaymentCleanupClient {
 
-    private final RestClient paymentRestClient;
+    private final PaymentCleanupApiClient paymentCleanupApiClient;
 
-    public PaymentCleanupClient(@Qualifier("paymentRestClient") RestClient paymentRestClient) {
-        this.paymentRestClient = paymentRestClient;
+    public PaymentCleanupClient(PaymentCleanupApiClient paymentCleanupApiClient) {
+        this.paymentCleanupApiClient = paymentCleanupApiClient;
     }
 
     public void deleteUserPaymentData(Long userId) {
         try {
-            paymentRestClient.delete()
-                    .uri("/users/{userId}", userId)
-                    .retrieve()
-                    .toBodilessEntity();
+            paymentCleanupApiClient.deleteUserPaymentData(userId);
         } catch (Exception ex) {
             log.warn("Unable to delete payment data for user {}: {}", userId, ex.getMessage());
         }

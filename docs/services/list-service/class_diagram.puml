@@ -1,0 +1,130 @@
+@startuml
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+' ══════════════ ENTITY ══════════════
+
+class TaskList <<Entity>> {
+    -Long id
+    -String name
+    -Long boardId
+    -Integer position
+    -String color
+    -Boolean isArchived
+    -LocalDateTime createdAt
+    -LocalDateTime updatedAt
+}
+
+' ══════════════ REQUEST DTOs ══════════════
+
+class CreateListRequest <<DTO>> {
+    -String name
+    -Long boardId
+    -String color
+}
+
+class MoveListRequest <<DTO>> {
+    -Long targetBoardId
+}
+
+' ══════════════ RESPONSE DTOs ══════════════
+
+class ListResponse <<DTO>> {
+    -Long id
+    -String name
+    -Long boardId
+    -Integer position
+    -String color
+    -Boolean isArchived
+    -LocalDateTime createdAt
+    -LocalDateTime updatedAt
+}
+
+' ── Response DTO mappings ──
+ListResponse ..> TaskList : maps from
+
+' ══════════════ REPOSITORY ══════════════
+
+interface TaskListRepository {
+    +findByBoardIdAndIsArchivedFalseOrderByPosition(Long) : List<TaskList>
+    +findByBoardIdAndIsArchivedTrueOrderByPosition(Long) : List<TaskList>
+    +deleteByBoardId(Long) : void
+}
+
+TaskListRepository ..> TaskList : manages
+
+' ══════════════ SERVICE LAYER ══════════════
+
+interface ListService {
+    +create(CreateListRequest, Long) : ListResponse
+    +getById(Long) : ListResponse
+    +getByBoard(Long, Long) : List<ListResponse>
+    +getArchivedByBoard(Long, Long) : List<ListResponse>
+    +update(Long, CreateListRequest, Long) : ListResponse
+    +reorder(Long, List<Long>, Long) : void
+    +archive(Long, Long) : void
+    +unarchive(Long, Long) : void
+    +delete(Long, Long) : void
+    +move(Long, Long, Long) : ListResponse
+    +deleteByBoardId(Long) : void
+}
+
+' ── DTO ←→ Service dependencies ──
+ListService ..> CreateListRequest : <<accepts>>
+ListService ..> ListResponse : <<returns>>
+
+class ListServiceImpl <<Service>> {
+    -TaskListRepository taskListRepository
+    -CardCleanupClient cardCleanupClient
+}
+
+ListServiceImpl ..|> ListService
+ListServiceImpl --> TaskListRepository
+ListServiceImpl --> CardCleanupClient
+
+' ══════════════ HTTP CLIENT ══════════════
+
+class CardCleanupClient <<Service>> {
+    -RestTemplate restTemplate
+    +deleteByListId(Long) : void
+}
+
+' ══════════════ CONTROLLER ══════════════
+
+class ListController <<RestController>> {
+    -ListService listService
+    +create(CreateListRequest, Long) : ResponseEntity<ListResponse>
+    +getById(Long) : ResponseEntity<ListResponse>
+    +getByBoard(Long, Long) : ResponseEntity<List<ListResponse>>
+    +getArchivedByBoard(Long, Long) : ResponseEntity<List<ListResponse>>
+    +update(Long, CreateListRequest, Long) : ResponseEntity<ListResponse>
+    +reorder(Long, List, Long) : ResponseEntity<Void>
+    +archive(Long, Long) : ResponseEntity<Void>
+    +unarchive(Long, Long) : ResponseEntity<Void>
+    +delete(Long, Long) : ResponseEntity<Void>
+    +move(Long, MoveListRequest, Long) : ResponseEntity<ListResponse>
+}
+
+ListController --> ListService : delegates
+
+' ── Controller ←→ DTO dependencies ──
+ListController ..> CreateListRequest : <<receives>>
+ListController ..> MoveListRequest : <<receives>>
+ListController ..> ListResponse : <<responds>>
+
+' ══════════════ EXCEPTIONS ══════════════
+
+class ResourceNotFoundException <<Exception>>
+
+ResourceNotFoundException --|> RuntimeException
+
+class GlobalExceptionHandler <<ControllerAdvice>> {
+    +handleNotFound(ResourceNotFoundException) : ResponseEntity
+    +handleGeneral(Exception) : ResponseEntity
+}
+
+GlobalExceptionHandler ..> ResourceNotFoundException : <<catches>>
+
+@enduml
+

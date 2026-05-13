@@ -1,0 +1,11 @@
+@startuml
+title ER Diagram: Card Service
+entity "cards" as cardEntity <<table>> {
+  *id : BIGINT <<PK>>
+  --
+  list_id : BIGINT
+  title : VARCHAR(255)
+  description : TEXT
+  position : INT
+}
+@enduml

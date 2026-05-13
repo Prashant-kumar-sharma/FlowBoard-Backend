@@ -257,6 +257,8 @@ services:
       DB_HOST: mysql
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      LIST_SERVICE_BASE_URL: http://list-service:8084/api/v1/lists/internal
+      CARD_SERVICE_BASE_URL: http://card-service:8085/api/v1/cards/internal
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
       ADMIN_SERVER_URL: http://admin-server:9090
     depends_on:
@@ -264,6 +266,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      list-service:
+        condition: service_started
+      card-service:
+        condition: service_started
       eureka-server:
         condition: service_healthy
     networks:

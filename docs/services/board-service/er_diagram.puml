@@ -1,0 +1,9 @@
+@startuml
+title ER Diagram: Board Service
+entity "boards" as board <<table>> {
+  *id : BIGINT <<PK>>
+  --
+  workspace_id : BIGINT
+  name : VARCHAR(255)
+}
+@enduml

@@ -1,22 +1,15 @@
 package com.flowboard.board.service;
 
-import org.springframework.beans.factory.annotation.Qualifier;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
 
 @Component
+@RequiredArgsConstructor
 public class CardCleanupClient {
 
-    private final RestClient cardCleanupRestClient;
-
-    public CardCleanupClient(@Qualifier("cardCleanupRestClient") RestClient cardCleanupRestClient) {
-        this.cardCleanupRestClient = cardCleanupRestClient;
-    }
+    private final CardCleanupApiClient cardCleanupApiClient;
 
     public void deleteByBoardId(Long boardId) {
-        cardCleanupRestClient.delete()
-                .uri("/board/{boardId}", boardId)
-                .retrieve()
-                .toBodilessEntity();
+        cardCleanupApiClient.deleteByBoardId(boardId);
     }
 }

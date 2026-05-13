@@ -1,0 +1,241 @@
+@startuml
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+' ══════════════ ENTITIES ══════════════
+
+class Card <<Entity>> {
+    -Long id
+    -Long listId
+    -Long boardId
+    -String title
+    -String description
+    -Integer position
+    -Priority priority
+    -Status status
+    -LocalDate dueDate
+    -LocalDate startDate
+    -Long assigneeId
+    -Long createdById
+    -Boolean isArchived
+    -String coverColor
+    -LocalDateTime createdAt
+    -LocalDateTime updatedAt
+}
+
+enum Priority {
+    LOW
+    MEDIUM
+    HIGH
+    CRITICAL
+}
+
+enum Status {
+    TO_DO
+    IN_PROGRESS
+    IN_REVIEW
+    DONE
+}
+
+class CardActivity <<Entity>> {
+    -Long id
+    -Long cardId
+    -Long actorId
+    -String action
+    -String fieldName
+    -String oldValue
+    -String newValue
+    -LocalDateTime createdAt
+}
+
+Card --> Priority : priority
+Card --> Status : status
+Card "1" -- "*" CardActivity : tracks changes
+
+' ══════════════ REQUEST DTOs ══════════════
+
+class CreateCardRequest <<DTO>> {
+    -Long listId
+    -Long boardId
+    -String title
+    -String description
+    -String priority
+    -String status
+    -LocalDate dueDate
+    -LocalDate startDate
+    -Long assigneeId
+    -String coverColor
+}
+
+class UpdateCardRequest <<DTO>> {
+    -String title
+    -String description
+    -String coverColor
+}
+
+class MoveCardRequest <<DTO>> {
+    -Long targetListId
+    -Integer targetPosition
+}
+
+class AssignCardRequest <<DTO>> {
+    -Long assigneeId
+}
+
+class UpdatePriorityRequest <<DTO>> {
+    -String priority
+}
+
+class UpdateStatusRequest <<DTO>> {
+    -String status
+}
+
+' ══════════════ RESPONSE DTOs ══════════════
+
+class CardResponse <<DTO>> {
+    -Long id
+    -Long listId
+    -Long boardId
+    -String title
+    -String description
+    -Integer position
+    -String priority
+    -String status
+    -LocalDate dueDate
+    -LocalDate startDate
+    -Long assigneeId
+    -Long createdById
+    -Boolean isArchived
+    -String coverColor
+    -LocalDateTime createdAt
+    -LocalDateTime updatedAt
+}
+
+' ── Response DTO mappings ──
+CardResponse ..> Card : maps from
+UpdatePriorityRequest ..> Priority : references
+UpdateStatusRequest ..> Status : references
+
+' ══════════════ REPOSITORIES ══════════════
+
+interface CardRepository {
+    +findByListIdOrderByPosition(Long) : List<Card>
+    +findByBoardId(Long) : List<Card>
+    +findByAssigneeId(Long) : List<Card>
+}
+
+interface CardActivityRepository {
+    +findByCardIdOrderByCreatedAtDesc(Long) : List<CardActivity>
+}
+
+CardRepository ..> Card : manages
+CardActivityRepository ..> CardActivity : manages
+
+' ══════════════ SERVICE LAYER ══════════════
+
+interface CardService {
+    +create(CreateCardRequest, Long) : CardResponse
+    +getById(Long, Long) : CardResponse
+    +getByList(Long, Long) : List<CardResponse>
+    +getByBoard(Long, Long) : List<CardResponse>
+    +getByAssignee(Long) : List<CardResponse>
+    +getOverdue() : List<CardResponse>
+    +getAll() : List<CardResponse>
+    +update(Long, CreateCardRequest, Long) : CardResponse
+    +move(Long, Long, Integer, Long) : CardResponse
+    +reorder(Long, List<Long>, Long) : void
+    +archive(Long, Long) : void
+    +unarchive(Long, Long) : void
+    +delete(Long, Long) : void
+    +setAssignee(Long, Long, Long) : CardResponse
+    +setPriority(Long, Priority, Long) : CardResponse
+    +setStatus(Long, Status, Long) : CardResponse
+    +getActivity(Long, Long) : List<CardActivity>
+    +getAllActivity() : List<CardActivity>
+    +deleteByBoardId(Long) : void
+    +deleteByListId(Long) : void
+}
+
+' ── DTO ←→ Service dependencies ──
+CardService ..> CreateCardRequest : <<accepts>>
+CardService ..> CardResponse : <<returns>>
+CardService ..> CardActivity : <<returns>>
+CardService ..> Priority : <<uses>>
+CardService ..> Status : <<uses>>
+
+class CardServiceImpl <<Service>> {
+    -CardRepository cardRepository
+    -CardActivityRepository activityRepository
+    -CardEventProducer cardEventProducer
+    -SimpMessagingTemplate messagingTemplate
+}
+
+CardServiceImpl ..|> CardService
+CardServiceImpl --> CardRepository
+CardServiceImpl --> CardActivityRepository
+CardServiceImpl --> CardEventProducer
+
+' ══════════════ KAFKA ══════════════
+
+class CardEventProducer <<Component>> {
+    -KafkaTemplate<String, String> kafkaTemplate
+    +sendCardAssigned(Card) : void
+    +sendCardMoved(Card) : void
+}
+
+CardEventProducer ..> Card : publishes events
+
+' ══════════════ CONFIG ══════════════
+
+class WebSocketConfig <<Configuration>>
+
+' ══════════════ CONTROLLER ══════════════
+
+class CardController <<RestController>> {
+    -CardService cardService
+    +create(CreateCardRequest, Long) : ResponseEntity<CardResponse>
+    +getById(Long, Long) : ResponseEntity<CardResponse>
+    +getByList(Long, Long) : ResponseEntity<List<CardResponse>>
+    +getByBoard(Long, Long) : ResponseEntity<List<CardResponse>>
+    +getByAssignee(Long) : ResponseEntity<List<CardResponse>>
+    +getOverdue(String) : ResponseEntity<List<CardResponse>>
+    +getAll(String) : ResponseEntity<List<CardResponse>>
+    +update(Long, CreateCardRequest, Long) : ResponseEntity<CardResponse>
+    +move(Long, MoveCardRequest, Long) : ResponseEntity<CardResponse>
+    +reorder(Long, List, Long) : ResponseEntity<Void>
+    +archive(Long, Long) : ResponseEntity<Void>
+    +unarchive(Long, Long) : ResponseEntity<Void>
+    +delete(Long, Long) : ResponseEntity<Void>
+    +setAssignee(Long, AssignCardRequest, Long) : ResponseEntity<CardResponse>
+    +setPriority(Long, UpdatePriorityRequest, Long) : ResponseEntity<CardResponse>
+    +setStatus(Long, UpdateStatusRequest, Long) : ResponseEntity<CardResponse>
+    +getActivity(Long, Long) : ResponseEntity<List<CardActivity>>
+    +getAllActivity(String) : ResponseEntity<List<CardActivity>>
+}
+
+CardController --> CardService : delegates
+
+' ── Controller ←→ DTO dependencies ──
+CardController ..> CreateCardRequest : <<receives>>
+CardController ..> MoveCardRequest : <<receives>>
+CardController ..> AssignCardRequest : <<receives>>
+CardController ..> UpdatePriorityRequest : <<receives>>
+CardController ..> UpdateStatusRequest : <<receives>>
+CardController ..> CardResponse : <<responds>>
+
+' ══════════════ EXCEPTIONS ══════════════
+
+class ResourceNotFoundException <<Exception>>
+
+ResourceNotFoundException --|> RuntimeException
+
+class GlobalExceptionHandler <<ControllerAdvice>> {
+    +handleNotFound(ResourceNotFoundException) : ResponseEntity
+    +handleGeneral(Exception) : ResponseEntity
+}
+
+GlobalExceptionHandler ..> ResourceNotFoundException : <<catches>>
+
+@enduml
+

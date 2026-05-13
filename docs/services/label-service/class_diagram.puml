@@ -1,0 +1,207 @@
+@startuml
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+' ══════════════ ENTITIES ══════════════
+
+class Label <<Entity>> {
+    -Long id
+    -Long boardId
+    -String name
+    -String color
+    -LocalDateTime createdAt
+}
+
+class CardLabel <<Entity>> {
+    -Long id
+    -Long cardId
+    -Long labelId
+}
+
+class Checklist <<Entity>> {
+    -Long id
+    -Long cardId
+    -String title
+    -Integer position
+    -List<ChecklistItem> items
+    -LocalDateTime createdAt
+}
+
+class ChecklistItem <<Entity>> {
+    -Long id
+    -Checklist checklist
+    -String text
+    -Boolean isCompleted
+    -Long assigneeId
+    -LocalDate dueDate
+    -Integer position
+}
+
+Checklist "1" o-- "*" ChecklistItem : items
+ChecklistItem --> Checklist : checklist
+CardLabel ..> Label : references
+CardLabel ..> Card : references\n(cross-service FK)
+
+' ══════════════ REQUEST DTOs ══════════════
+
+class CreateLabelRequest <<DTO>> {
+    -Long boardId
+    -String name
+    -String color
+}
+
+class CreateChecklistRequest <<DTO>> {
+    -Long cardId
+    -String title
+}
+
+class CreateChecklistItemRequest <<DTO>> {
+    -String text
+    -Long assigneeId
+}
+
+' ══════════════ RESPONSE DTOs ══════════════
+
+class LabelResponse <<DTO>> {
+    -Long id
+    -Long boardId
+    -String name
+    -String color
+    -LocalDateTime createdAt
+}
+
+class ChecklistResponse <<DTO>> {
+    -Long id
+    -Long cardId
+    -String title
+    -Integer position
+    -List<ItemResponse> items
+    -LocalDateTime createdAt
+}
+
+class ItemResponse <<DTO>> {
+    -Long id
+    -String text
+    -Boolean isCompleted
+    -Long assigneeId
+    -LocalDate dueDate
+    -Integer position
+}
+
+' ── Response DTO compositions & mappings ──
+ChecklistResponse *-- ItemResponse : items
+LabelResponse ..> Label : maps from
+ChecklistResponse ..> Checklist : maps from
+ItemResponse ..> ChecklistItem : maps from
+CreateLabelRequest ..> Label : creates
+CreateChecklistRequest ..> Checklist : creates
+CreateChecklistItemRequest ..> ChecklistItem : creates
+
+' ══════════════ REPOSITORIES ══════════════
+
+interface LabelRepository {
+    +findByBoardId(Long) : List<Label>
+}
+
+interface CardLabelRepository {
+    +findByCardId(Long) : List<CardLabel>
+    +findByCardIdAndLabelId(Long, Long) : Optional<CardLabel>
+    +deleteByCardIdAndLabelId(Long, Long) : void
+}
+
+interface ChecklistRepository {
+    +findByCardId(Long) : List<Checklist>
+}
+
+interface ChecklistItemRepository {
+    +findByChecklistId(Long) : List<ChecklistItem>
+    +countByChecklistIdAndIsCompletedTrue(Long) : long
+    +countByChecklistId(Long) : long
+}
+
+LabelRepository ..> Label : manages
+CardLabelRepository ..> CardLabel : manages
+ChecklistRepository ..> Checklist : manages
+ChecklistItemRepository ..> ChecklistItem : manages
+
+' ══════════════ SERVICE LAYER ══════════════
+
+interface LabelService {
+    +createLabel(Long, String, String) : Label
+    +getLabelsByBoard(Long) : List<Label>
+    +updateLabel(Long, String, String) : Label
+    +deleteLabel(Long) : void
+    +addLabelToCard(Long, Long) : CardLabel
+    +removeLabelFromCard(Long, Long) : void
+    +getLabelsForCard(Long) : List<Label>
+    +createChecklist(Long, String) : Checklist
+    +addItem(Long, String, Long) : ChecklistItem
+    +toggleItem(Long) : ChecklistItem
+    +deleteChecklist(Long) : void
+    +getChecklistsByCard(Long) : List<Checklist>
+    +getChecklistProgress(Long) : int
+}
+
+' ── DTO ←→ Service dependencies ──
+LabelService ..> Label : <<returns>>
+LabelService ..> CardLabel : <<returns>>
+LabelService ..> Checklist : <<returns>>
+LabelService ..> ChecklistItem : <<returns>>
+
+class LabelServiceImpl <<Service>> {
+    -LabelRepository labelRepository
+    -CardLabelRepository cardLabelRepository
+    -ChecklistRepository checklistRepository
+    -ChecklistItemRepository checklistItemRepository
+}
+
+LabelServiceImpl ..|> LabelService
+LabelServiceImpl --> LabelRepository
+LabelServiceImpl --> CardLabelRepository
+LabelServiceImpl --> ChecklistRepository
+LabelServiceImpl --> ChecklistItemRepository
+
+' ══════════════ CONTROLLER ══════════════
+
+class LabelController <<RestController>> {
+    -LabelService labelService
+    +createLabel(CreateLabelRequest) : ResponseEntity<LabelResponse>
+    +getLabelsByBoard(Long) : ResponseEntity<List<LabelResponse>>
+    +updateLabel(Long, CreateLabelRequest) : ResponseEntity<LabelResponse>
+    +deleteLabel(Long) : ResponseEntity<Void>
+    +addLabelToCard(Long, Long) : ResponseEntity<Void>
+    +removeLabelFromCard(Long, Long) : ResponseEntity<Void>
+    +getLabelsForCard(Long) : ResponseEntity<List<LabelResponse>>
+    +createChecklist(CreateChecklistRequest) : ResponseEntity<ChecklistResponse>
+    +addItem(Long, CreateChecklistItemRequest) : ResponseEntity<ChecklistResponse>
+    +toggleItem(Long) : ResponseEntity<ChecklistResponse>
+    +deleteChecklist(Long) : ResponseEntity<Void>
+    +getChecklistsByCard(Long) : ResponseEntity<List<ChecklistResponse>>
+    +getProgress(Long) : ResponseEntity<Map>
+}
+
+LabelController --> LabelService : delegates
+
+' ── Controller ←→ DTO dependencies ──
+LabelController ..> CreateLabelRequest : <<receives>>
+LabelController ..> CreateChecklistRequest : <<receives>>
+LabelController ..> CreateChecklistItemRequest : <<receives>>
+LabelController ..> LabelResponse : <<responds>>
+LabelController ..> ChecklistResponse : <<responds>>
+
+' ══════════════ EXCEPTIONS ══════════════
+
+class ResourceNotFoundException <<Exception>>
+
+ResourceNotFoundException --|> RuntimeException
+
+class GlobalExceptionHandler <<ControllerAdvice>> {
+    +handleNotFound(ResourceNotFoundException) : ResponseEntity
+    +handleGeneral(Exception) : ResponseEntity
+}
+
+GlobalExceptionHandler ..> ResourceNotFoundException : <<catches>>
+
+@enduml
+

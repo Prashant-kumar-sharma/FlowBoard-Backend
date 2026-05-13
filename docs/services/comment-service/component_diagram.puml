@@ -1,0 +1,12 @@
+@startuml
+title Component Diagram: Comment Service
+component "Comment Service" {
+  [CommentController]
+  [CommentServiceImpl]
+}
+database "Comment DB" {
+  [comments table]
+}
+[CommentController] --> [CommentServiceImpl]
+[CommentServiceImpl] --> [comments table]
+@enduml

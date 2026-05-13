@@ -1,0 +1,186 @@
+@startuml
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+' ══════════════ ENTITIES ══════════════
+
+class PremiumSubscription <<Entity>> {
+    -Long id
+    -Long userId
+    -String planCode
+    -String providerName
+    -String providerOrderId
+    -String providerPaymentId
+    -SubscriptionStatus status
+    -LocalDateTime activatedAt
+    -LocalDateTime createdAt
+    -LocalDateTime updatedAt
+}
+
+enum SubscriptionStatus {
+    ACTIVE
+    INACTIVE
+}
+
+class PaymentOrder <<Entity>> {
+    -Long id
+    -Long userId
+    -String providerOrderId
+    -String providerPaymentId
+    -String providerName
+    -String planCode
+    -Integer amountPaise
+    -String currency
+    -OrderStatus status
+    -String notes
+    -LocalDateTime createdAt
+    -LocalDateTime updatedAt
+}
+
+enum OrderStatus {
+    CREATED
+    PAID
+    FAILED
+}
+
+PremiumSubscription --> SubscriptionStatus : status
+PaymentOrder --> OrderStatus : status
+
+' ══════════════ REQUEST DTOs ══════════════
+
+class ConfirmPaymentRequest <<DTO>> {
+    -String razorpayOrderId
+    -String razorpayPaymentId
+    -String razorpaySignature
+}
+
+' ══════════════ RESPONSE DTOs ══════════════
+
+class CheckoutSessionResponse <<DTO>> {
+    -String razorpayOrderId
+    -Integer amount
+    -String currency
+    -String keyId
+}
+
+class PaymentSummaryResponse <<DTO>> {
+    -Long userId
+    -Boolean isPremium
+    -String planCode
+    -String status
+    -LocalDateTime activatedAt
+}
+
+class RazorpayOrderResponse <<DTO>> {
+    -String orderId
+    -Integer amount
+    -String currency
+}
+
+class PaymentEntitlementResponse <<DTO>> {
+    -Long userId
+    -Boolean isPremium
+    -Integer maxWorkspaces
+    -Integer maxBoardsPerWorkspace
+}
+
+' ── Response DTO mappings ──
+PaymentSummaryResponse ..> PremiumSubscription : maps from
+PaymentEntitlementResponse ..> PremiumSubscription : maps from
+CheckoutSessionResponse ..> PaymentOrder : maps from
+ConfirmPaymentRequest ..> PaymentOrder : confirms
+
+' ══════════════ REPOSITORIES ══════════════
+
+interface PremiumSubscriptionRepository {
+    +findByUserId(Long) : Optional<PremiumSubscription>
+    +existsByUserIdAndStatus(Long, SubscriptionStatus) : boolean
+}
+
+interface PaymentOrderRepository {
+    +findByProviderOrderId(String) : Optional<PaymentOrder>
+    +findByUserId(Long) : List<PaymentOrder>
+}
+
+PremiumSubscriptionRepository ..> PremiumSubscription : manages
+PaymentOrderRepository ..> PaymentOrder : manages
+
+' ══════════════ SERVICE LAYER ══════════════
+
+class PaymentService <<Service>> {
+    -PremiumSubscriptionRepository subscriptionRepo
+    -PaymentOrderRepository orderRepo
+    -RazorpayClient razorpayClient
+    -PaymentEventProducer eventProducer
+    +getSummary(Long) : PaymentSummaryResponse
+    +createCheckout(Long) : CheckoutSessionResponse
+    +confirmPayment(Long, ConfirmPaymentRequest) : PaymentSummaryResponse
+}
+
+class PaymentQueryService <<Service>> {
+    -PremiumSubscriptionRepository subscriptionRepo
+    +isPremium(Long) : boolean
+    +getEntitlement(Long) : PaymentEntitlementResponse
+    +deleteByUserId(Long) : void
+}
+
+' ── DTO ←→ Service dependencies ──
+PaymentService ..> ConfirmPaymentRequest : <<accepts>>
+PaymentService ..> PaymentSummaryResponse : <<returns>>
+PaymentService ..> CheckoutSessionResponse : <<returns>>
+PaymentQueryService ..> PaymentEntitlementResponse : <<returns>>
+
+PaymentService --> PremiumSubscriptionRepository
+PaymentService --> PaymentOrderRepository
+PaymentService --> PaymentEventProducer
+PaymentQueryService --> PremiumSubscriptionRepository
+
+' ══════════════ KAFKA ══════════════
+
+class PaymentEventProducer <<Component>> {
+    -KafkaTemplate<String, Object> kafkaTemplate
+    +sendPremiumActivated(PremiumSubscription) : void
+}
+
+PaymentEventProducer ..> PremiumSubscription : publishes events
+
+' ══════════════ CONTROLLERS ══════════════
+
+class PaymentController <<RestController>> {
+    -PaymentService paymentService
+    +getSummary(Long) : ResponseEntity<PaymentSummaryResponse>
+    +createCheckout(Long) : ResponseEntity<CheckoutSessionResponse>
+    +confirmPayment(Long, ConfirmPaymentRequest) : ResponseEntity<PaymentSummaryResponse>
+}
+
+class InternalPaymentController <<RestController>> {
+    -PaymentQueryService paymentQueryService
+    +isPremium(Long) : ResponseEntity<Boolean>
+    +getEntitlement(Long) : ResponseEntity<PaymentEntitlementResponse>
+    +deleteByUserId(Long) : ResponseEntity<Void>
+}
+
+PaymentController --> PaymentService : delegates
+InternalPaymentController --> PaymentQueryService : delegates
+
+' ── Controller ←→ DTO dependencies ──
+PaymentController ..> ConfirmPaymentRequest : <<receives>>
+PaymentController ..> PaymentSummaryResponse : <<responds>>
+PaymentController ..> CheckoutSessionResponse : <<responds>>
+InternalPaymentController ..> PaymentEntitlementResponse : <<responds>>
+
+' ══════════════ CONFIG ══════════════
+
+class RazorpayClientConfig <<Configuration>> {
+    +razorpayClient() : RazorpayClient
+}
+
+RazorpayClientConfig ..> PaymentService : provides RazorpayClient
+
+class GlobalExceptionHandler <<ControllerAdvice>> {
+    +handleGeneral(Exception) : ResponseEntity
+}
+
+@enduml
+

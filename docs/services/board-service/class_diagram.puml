@@ -1,0 +1,253 @@
+@startuml
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+' ══════════════ ENTITIES ══════════════
+
+class Board <<Entity>> {
+    -Long id
+    -String name
+    -String description
+    -Long workspaceId
+    -Long createdById
+    -String background
+    -BoardVisibility visibility
+    -Boolean isClosed
+    -List<BoardMember> members
+    -LocalDateTime createdAt
+    -LocalDateTime updatedAt
+}
+
+enum BoardVisibility {
+    PUBLIC
+    PRIVATE
+}
+
+class BoardMember <<Entity>> {
+    -Long id
+    -Board board
+    -Long userId
+    -BoardMemberRole role
+    -LocalDateTime addedAt
+}
+
+enum BoardMemberRole {
+    OBSERVER
+    MEMBER
+    ADMIN
+}
+
+class BoardAuditEvent <<Entity>> {
+    -Long id
+    -Long boardId
+    -Long actorId
+    -String action
+    -String targetType
+    -String targetId
+    -String details
+    -LocalDateTime createdAt
+}
+
+Board --> BoardVisibility : visibility
+Board "1" o-- "*" BoardMember : members
+BoardMember --> Board : board
+BoardMember --> BoardMemberRole : role
+
+' ══════════════ REQUEST DTOs ══════════════
+
+class CreateBoardRequest <<DTO>> {
+    -String name
+    -String description
+    -Long workspaceId
+    -String background
+    -String visibility
+}
+
+class AddBoardMemberRequest <<DTO>> {
+    -Long userId
+    -String role
+}
+
+class UpdateBoardMemberRoleRequest <<DTO>> {
+    -String role
+}
+
+' ══════════════ RESPONSE DTOs ══════════════
+
+class BoardResponse <<DTO>> {
+    -Long id
+    -String name
+    -String description
+    -Long workspaceId
+    -Long createdById
+    -String background
+    -String visibility
+    -Boolean isClosed
+    -List<BoardMemberResponse> members
+    -LocalDateTime createdAt
+    -LocalDateTime updatedAt
+}
+
+class BoardMemberResponse <<DTO>> {
+    -Long id
+    -Long userId
+    -String role
+    -LocalDateTime addedAt
+}
+
+class BoardAuditEventResponse <<DTO>> {
+    -Long id
+    -Long boardId
+    -Long actorId
+    -String action
+    -String targetType
+    -String targetId
+    -String details
+    -LocalDateTime createdAt
+}
+
+' ── Response DTO compositions ──
+BoardResponse *-- BoardMemberResponse : members
+BoardResponse ..> Board : maps from
+BoardMemberResponse ..> BoardMember : maps from
+BoardAuditEventResponse ..> BoardAuditEvent : maps from
+
+' ══════════════ REPOSITORIES ══════════════
+
+interface BoardRepository {
+    +findByWorkspaceId(Long) : List<Board>
+}
+
+interface BoardMemberRepository {
+    +findByBoardIdAndUserId(Long, Long) : Optional<BoardMember>
+    +findByUserId(Long) : List<BoardMember>
+}
+
+interface BoardAuditEventRepository {
+    +findAllByOrderByCreatedAtDesc() : List<BoardAuditEvent>
+}
+
+BoardRepository ..> Board : manages
+BoardMemberRepository ..> BoardMember : manages
+BoardAuditEventRepository ..> BoardAuditEvent : manages
+
+' ══════════════ SERVICE LAYER ══════════════
+
+interface BoardService {
+    +create(CreateBoardRequest, Long) : BoardResponse
+    +getById(Long, Long) : BoardResponse
+    +getByWorkspace(Long, Long) : List<BoardResponse>
+    +getByMember(Long) : List<BoardResponse>
+    +getAll() : List<BoardResponse>
+    +update(Long, CreateBoardRequest, Long) : BoardResponse
+    +closeBoard(Long, Long) : void
+    +deleteBoard(Long, Long) : void
+    +adminCloseBoard(Long, Long) : void
+    +adminDeleteBoard(Long, Long) : void
+    +deleteByWorkspaceId(Long, Long) : void
+    +addMember(Long, Long, Role, Long) : BoardMemberResponse
+    +removeMember(Long, Long, Long) : void
+    +updateMemberRole(Long, Long, Role, Long) : BoardMemberResponse
+    +getMembers(Long) : List<BoardMemberResponse>
+    +getAuditEvents() : List<BoardAuditEventResponse>
+}
+
+' ── DTO ←→ Service dependencies ──
+BoardService ..> CreateBoardRequest : <<accepts>>
+BoardService ..> BoardResponse : <<returns>>
+BoardService ..> BoardMemberResponse : <<returns>>
+BoardService ..> BoardAuditEventResponse : <<returns>>
+
+class BoardServiceImpl <<Service>> {
+    -BoardRepository boardRepository
+    -BoardMemberRepository memberRepository
+    -BoardAuditEventRepository auditRepository
+    -ListCleanupClient listCleanupClient
+    -CardCleanupClient cardCleanupClient
+    -BoardEventProducer boardEventProducer
+}
+
+BoardServiceImpl ..|> BoardService
+BoardServiceImpl --> BoardRepository
+BoardServiceImpl --> BoardMemberRepository
+BoardServiceImpl --> BoardAuditEventRepository
+BoardServiceImpl --> ListCleanupClient
+BoardServiceImpl --> CardCleanupClient
+BoardServiceImpl --> BoardEventProducer
+
+' ══════════════ HTTP CLIENTS ══════════════
+
+class ListCleanupClient <<Service>> {
+    -RestTemplate restTemplate
+    +deleteByBoardId(Long) : void
+}
+
+class CardCleanupClient <<Service>> {
+    -RestTemplate restTemplate
+    +deleteByBoardId(Long) : void
+}
+
+' ══════════════ KAFKA ══════════════
+
+class BoardEventProducer <<Component>> {
+    -KafkaTemplate<String, Object> kafkaTemplate
+    +sendBoardCreated(Board) : void
+    +sendBoardDeleted(Board) : void
+}
+
+BoardEventProducer ..> Board : publishes events
+
+' ══════════════ CONTROLLER ══════════════
+
+class BoardController <<RestController>> {
+    -BoardService boardService
+    +create(CreateBoardRequest, Long) : ResponseEntity<BoardResponse>
+    +getById(Long, Long) : ResponseEntity<BoardResponse>
+    +getByWorkspace(Long, Long) : ResponseEntity<List<BoardResponse>>
+    +getByMember(Long) : ResponseEntity<List<BoardResponse>>
+    +getAll(String) : ResponseEntity<List<BoardResponse>>
+    +update(Long, CreateBoardRequest, Long) : ResponseEntity<BoardResponse>
+    +close(Long, Long) : ResponseEntity<Void>
+    +delete(Long, Long) : ResponseEntity<Void>
+    +adminClose(Long, Long, String) : ResponseEntity<Void>
+    +adminDelete(Long, Long, String) : ResponseEntity<Void>
+    +addMember(Long, AddBoardMemberRequest, Long) : ResponseEntity<BoardMemberResponse>
+    +removeMember(Long, Long, Long) : ResponseEntity<Void>
+    +updateRole(Long, Long, UpdateBoardMemberRoleRequest, Long) : ResponseEntity<BoardMemberResponse>
+    +getMembers(Long) : ResponseEntity<List<BoardMemberResponse>>
+    +getAuditEvents(String) : ResponseEntity<List<BoardAuditEventResponse>>
+}
+
+BoardController --> BoardService : delegates
+
+' ── Controller ←→ DTO dependencies ──
+BoardController ..> CreateBoardRequest : <<receives>>
+BoardController ..> AddBoardMemberRequest : <<receives>>
+BoardController ..> UpdateBoardMemberRoleRequest : <<receives>>
+BoardController ..> BoardResponse : <<responds>>
+BoardController ..> BoardMemberResponse : <<responds>>
+BoardController ..> BoardAuditEventResponse : <<responds>>
+
+' ══════════════ EXCEPTIONS ══════════════
+
+class UnauthorizedException <<Exception>>
+class AccessDeniedException <<Exception>>
+class ResourceNotFoundException <<Exception>>
+
+UnauthorizedException --|> RuntimeException
+AccessDeniedException --|> RuntimeException
+ResourceNotFoundException --|> RuntimeException
+
+class GlobalExceptionHandler <<ControllerAdvice>> {
+    +handleNotFound(ResourceNotFoundException) : ResponseEntity
+    +handleForbidden(RuntimeException) : ResponseEntity
+    +handleGeneral(Exception) : ResponseEntity
+}
+
+GlobalExceptionHandler ..> ResourceNotFoundException : <<catches>>
+GlobalExceptionHandler ..> UnauthorizedException : <<catches>>
+GlobalExceptionHandler ..> AccessDeniedException : <<catches>>
+
+@enduml
+

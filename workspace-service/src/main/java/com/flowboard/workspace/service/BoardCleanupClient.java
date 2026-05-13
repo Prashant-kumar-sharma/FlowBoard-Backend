@@ -1,25 +1,15 @@
 package com.flowboard.workspace.service;
 
-import org.springframework.beans.factory.annotation.Qualifier;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
 
 @Component
+@RequiredArgsConstructor
 public class BoardCleanupClient {
 
-    private final RestClient boardCleanupRestClient;
-
-    public BoardCleanupClient(@Qualifier("boardCleanupRestClient") RestClient boardCleanupRestClient) {
-        this.boardCleanupRestClient = boardCleanupRestClient;
-    }
+    private final BoardCleanupApiClient boardCleanupApiClient;
 
     public void deleteByWorkspaceId(Long workspaceId, Long actorId) {
-        boardCleanupRestClient.delete()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/workspace/{workspaceId}")
-                        .queryParam("actorId", actorId)
-                        .build(workspaceId))
-                .retrieve()
-                .toBodilessEntity();
+        boardCleanupApiClient.deleteByWorkspaceId(workspaceId, actorId);
     }
 }

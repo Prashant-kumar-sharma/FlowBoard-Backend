@@ -1,0 +1,58 @@
+@startuml
+title Component Diagram: Workspace & Payment Interaction
+
+package "Client Layer" {
+  [Angular SPA] <<frontend>>
+}
+
+package "Routing & Discovery" {
+  [API Gateway] <<gateway>>
+  [Eureka Registry] <<registry>>
+}
+
+package "Workspace Bounded Context" {
+  component "Workspace Service" <<service>> {
+    [Workspace Controller]
+    [Workspace Manager]
+    [Payment HTTP Client]
+    [Kafka Publisher]
+  }
+  
+  database "Workspace DB" <<database>> {
+    [workspaces table]
+    [workspace_members table]
+  }
+}
+
+package "Payment Bounded Context" {
+  component "Payment Service" <<service>> {
+    [Payment Controller]
+    [Subscription Manager]
+  }
+  
+  database "Payment DB" <<database>> {
+    [subscriptions table]
+  }
+}
+
+queue "Kafka Event Bus" <<messaging>> {
+  [workspace-events-topic]
+}
+
+[Angular SPA] ..> [API Gateway] : /api/v1/workspaces
+[API Gateway] ..> [Workspace Controller] : Route Request
+
+[Workspace Manager] ..> [workspaces table] : JDBC/JPA
+[Workspace Manager] ..> [Payment HTTP Client] : Verify Subscription
+
+[Payment HTTP Client] ..> [Payment Controller] : HTTP GET /status
+[Payment Controller] ..> [Subscription Manager] : Check Status
+[Subscription Manager] ..> [subscriptions table] : JDBC/JPA
+
+[Kafka Publisher] ..> [workspace-events-topic] : Publish "WorkspaceCreated"
+
+[API Gateway] ..> [Eureka Registry] : Resolve IPs
+[Workspace Service] ..> [Eureka Registry] : Register
+[Payment Service] ..> [Eureka Registry] : Register
+
+@enduml

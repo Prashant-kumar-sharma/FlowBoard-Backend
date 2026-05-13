@@ -1,0 +1,1862 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FlowBoard Enterprise Architecture Report</title>
+  <meta name="description" content="Enterprise-grade interactive architecture and technical documentation for FlowBoard." />
+  <script>
+    window.tailwind = {
+      config: {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            ink: '#081120',
+            mist: '#eef4ff',
+            accent: '#0f766e',
+            coral: '#f97316',
+            sky: '#0284c7',
+            slateglass: 'rgba(15, 23, 42, 0.58)'
+          },
+          boxShadow: {
+            glow: '0 24px 80px rgba(2, 132, 199, 0.18)',
+            glass: '0 18px 60px rgba(15, 23, 42, 0.20)'
+          },
+          fontFamily: {
+            display: ['"Space Grotesk"', 'sans-serif'],
+            body: ['"Manrope"', 'sans-serif']
+          }
+        }
+      }
+      }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+  <style>
+    :root {
+      color-scheme: light;
+      --page-bg: linear-gradient(180deg, #f6fbff 0%, #eef4ff 34%, #ffffff 100%);
+      --panel-bg: rgba(255, 255, 255, 0.72);
+      --panel-border: rgba(148, 163, 184, 0.22);
+      --text-main: #0f172a;
+      --text-soft: #334155;
+      --text-muted: #475569;
+      --hero-a: rgba(14, 165, 233, 0.14);
+      --hero-b: rgba(15, 118, 110, 0.15);
+      --hero-c: rgba(249, 115, 22, 0.12);
+      --sidebar-bg: rgba(255, 255, 255, 0.74);
+    }
+
+    .dark {
+      color-scheme: dark;
+      --page-bg: radial-gradient(circle at top left, rgba(14, 165, 233, 0.13), transparent 28%), radial-gradient(circle at top right, rgba(249, 115, 22, 0.10), transparent 22%), linear-gradient(180deg, #07101d 0%, #09131f 40%, #0c1726 100%);
+      --panel-bg: rgba(10, 18, 31, 0.70);
+      --panel-border: rgba(148, 163, 184, 0.14);
+      --text-main: #e5eefb;
+      --text-soft: #d3deed;
+      --text-muted: #b3c1d4;
+      --hero-a: rgba(14, 165, 233, 0.18);
+      --hero-b: rgba(15, 118, 110, 0.18);
+      --hero-c: rgba(249, 115, 22, 0.16);
+      --sidebar-bg: rgba(8, 17, 32, 0.80);
+    }
+
+    body {
+      background: var(--page-bg);
+      color: var(--text-main);
+      font-family: "Manrope", sans-serif;
+    }
+
+    .glass {
+      background: var(--panel-bg);
+      backdrop-filter: blur(18px);
+      border: 1px solid var(--panel-border);
+      box-shadow: 0 18px 60px rgba(15, 23, 42, 0.10);
+    }
+
+    .hero-grid {
+      background:
+        radial-gradient(circle at 12% 22%, var(--hero-a), transparent 28%),
+        radial-gradient(circle at 88% 12%, var(--hero-b), transparent 24%),
+        radial-gradient(circle at 75% 78%, var(--hero-c), transparent 20%);
+    }
+
+    .section-anchor {
+      scroll-margin-top: 88px;
+    }
+
+    .topbar {
+      transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .topbar-inner,
+    .topbar-brand,
+    .topbar-icon,
+    .topbar-subtitle,
+    .topbar-badge,
+    .topbar-toggle {
+      transition: all 0.25s ease;
+    }
+
+    .topbar.is-collapsed {
+      box-shadow: 0 14px 45px rgba(15, 23, 42, 0.12);
+    }
+
+    .topbar.is-collapsed .topbar-inner {
+      padding-top: 0.55rem;
+      padding-bottom: 0.55rem;
+    }
+
+    .topbar.is-collapsed .topbar-icon {
+      height: 2.35rem;
+      width: 2.35rem;
+      border-radius: 1rem;
+    }
+
+    .topbar.is-collapsed .topbar-brand {
+      font-size: 1rem;
+    }
+
+    .topbar.is-collapsed .topbar-subtitle {
+      max-height: 0;
+      opacity: 0;
+      margin-top: 0;
+      overflow: hidden;
+      transform: translateY(-4px);
+    }
+
+    .topbar.is-collapsed .topbar-badge {
+      opacity: 0;
+      transform: translateY(-6px);
+      pointer-events: none;
+    }
+
+    .topbar.is-collapsed .topbar-toggle {
+      padding-top: 0.45rem;
+      padding-bottom: 0.45rem;
+    }
+
+    .sidebar-link.active {
+      background: linear-gradient(90deg, rgba(14, 165, 233, 0.18), rgba(15, 118, 110, 0.12));
+      color: #0ea5e9;
+      border-color: rgba(14, 165, 233, 0.32);
+    }
+
+    .mermaid {
+      overflow-x: auto;
+      padding: 1rem;
+      border-radius: 1rem;
+      background: rgba(2, 6, 23, 0.04);
+    }
+
+    .dark .mermaid {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .copy-soft {
+      color: var(--text-soft);
+    }
+
+    .copy-muted {
+      color: var(--text-muted);
+    }
+
+    .text-slate-700 {
+      color: var(--text-soft) !important;
+    }
+
+    .text-slate-600 {
+      color: var(--text-muted) !important;
+    }
+
+    .text-slate-500 {
+      color: #64748b !important;
+    }
+
+    .dark .dark\:text-slate-400,
+    .dark .dark\:text-slate-300 {
+      color: var(--text-soft) !important;
+    }
+
+    .dark .dark\:text-slate-200 {
+      color: #f3f7fd !important;
+    }
+
+    .mermaid svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, #0ea5e9, #0f766e);
+      color: white;
+      border-color: transparent;
+    }
+
+    .accordion-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s ease;
+    }
+
+    .metric-ring {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .metric-ring::after {
+      content: "";
+      position: absolute;
+      inset: -40%;
+      background: conic-gradient(from 120deg, rgba(14,165,233,.18), transparent 30%, rgba(15,118,110,.16), transparent 60%, rgba(249,115,22,.18));
+      filter: blur(22px);
+      z-index: 0;
+    }
+
+    .metric-ring > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .score-bar > span {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #0ea5e9, #0f766e);
+    }
+  </style>
+</head>
+<body class="antialiased">
+  <div class="min-h-screen">
+    <header id="topbar" class="topbar sticky top-0 z-40 border-b border-slate-200/50 bg-white/70 backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-950/55">
+      <div class="topbar-inner mx-auto flex max-w-[1600px] items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+        <div class="flex items-center gap-3">
+          <div class="topbar-icon flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-teal-600 text-white shadow-glow">
+            <i class="fa-solid fa-layer-group"></i>
+          </div>
+          <div>
+            <p class="topbar-brand font-display text-lg font-bold tracking-tight">FlowBoard</p>
+            <p class="topbar-subtitle text-sm text-slate-600 dark:text-slate-400">Enterprise Architecture Report</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="topbar-badge hidden rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300 md:inline-flex">Evaluator Ready</span>
+          <button id="themeToggle" class="topbar-toggle inline-flex items-center gap-2 rounded-full border border-slate-300/70 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-sky-400 hover:text-sky-600 dark:border-slate-700 dark:text-slate-200 dark:hover:border-sky-500">
+            <i class="fa-solid fa-moon"></i>
+            <span>Theme</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="mx-auto grid max-w-[1600px] grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:px-8">
+      <aside class="lg:sticky lg:top-24 lg:h-[calc(100vh-7rem)]">
+        <div class="glass h-full overflow-y-auto rounded-3xl p-5" style="background: var(--sidebar-bg);">
+          <div class="mb-5">
+            <p class="text-xs font-semibold uppercase tracking-[0.24em] text-sky-600 dark:text-sky-400">Contents</p>
+            <h2 class="mt-2 font-display text-2xl font-bold">Documentation Map</h2>
+          </div>
+          <nav id="sidebarNav" class="space-y-2 text-sm">
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#hero">Hero</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#executive-summary">Executive Summary</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#project-overview">Project Overview</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#technology-stack">Technology Stack</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#system-architecture">System Architecture</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#uml-overview">UML Overview</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#component-diagram">Component Diagram</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#class-diagram">Class Diagram</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#state-diagram">State Diagram</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#security-architecture">Security Architecture</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#database-design">Database Design</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#microservice-details">Microservice Details</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#event-driven-architecture">Event-Driven Architecture</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#api-gateway-details">API Gateway</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#real-time-communication">Real-Time Layer</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#use-case-diagrams">Use Case Diagrams</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#use-case-specifications">Use Case Specifications</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#exception-handling">Exception Handling</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#testing-strategy">Testing Strategy</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#devops-deployment">DevOps & Deployment</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#performance-scalability">Performance & Scalability</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#challenges-solutions">Challenges & Solutions</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#future-enhancements">Future Enhancements</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#evaluation">Evaluation</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#presentation-strategy">Presentation Strategy</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#interview-questions">Interview / Viva</a>
+            <a class="sidebar-link block rounded-2xl border border-transparent px-3 py-2 transition hover:border-sky-300/40 hover:text-sky-600" href="#conclusion">Conclusion</a>
+          </nav>
+        </div>
+      </aside>
+
+      <main class="space-y-6">
+        <section id="hero" class="section-anchor glass hero-grid overflow-hidden rounded-[2rem] p-6 sm:p-8 xl:p-10">
+          <div class="grid gap-8 xl:grid-cols-[1.25fr_0.9fr]">
+            <div>
+              <div class="mb-5 inline-flex items-center gap-2 rounded-full border border-sky-400/25 bg-sky-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-sky-700 dark:text-sky-300">
+                <i class="fa-solid fa-diagram-project"></i>
+                Enterprise SaaS Microservices Web Application
+              </div>
+              <h1 class="max-w-4xl font-display text-4xl font-bold tracking-tight sm:text-5xl xl:text-6xl">FlowBoard: a scalable, event-driven collaboration platform for secure real-time task orchestration.</h1>
+              <p class="copy-soft mt-5 max-w-3xl text-lg leading-8">
+                FlowBoard combines Angular 17, Spring Boot 3.2 microservices, Kafka, Redis, Eureka, and an API Gateway to deliver Trello-style task coordination with enterprise security, distributed communication, and operational readiness.
+              </p>
+              <div class="mt-6 flex flex-wrap gap-3">
+                <span class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white dark:bg-white dark:text-slate-900">Angular 17</span>
+                <span class="rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white">Spring Boot 3.2</span>
+                <span class="rounded-full bg-teal-600 px-4 py-2 text-sm font-semibold text-white">Kafka + Redis</span>
+                <span class="rounded-full bg-orange-500 px-4 py-2 text-sm font-semibold text-white">JWT + OAuth2 + OTP</span>
+                <span class="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Dockerized</span>
+              </div>
+
+              <div class="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div class="metric-ring glass rounded-3xl p-5">
+                  <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Core Services</p>
+                  <p class="mt-3 font-display text-4xl font-bold"><span class="counter" data-count="9">0</span></p>
+                  <p class="copy-muted mt-2 text-sm">Domain-aligned services from Auth to Payment.</p>
+                </div>
+                <div class="metric-ring glass rounded-3xl p-5">
+                  <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Infra Units</p>
+                  <p class="mt-3 font-display text-4xl font-bold"><span class="counter" data-count="3">0</span></p>
+                  <p class="copy-muted mt-2 text-sm">Gateway, Eureka, and Admin Server control plane.</p>
+                </div>
+                <div class="metric-ring glass rounded-3xl p-5">
+                  <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Mapped Endpoints</p>
+                  <p class="mt-3 font-display text-4xl font-bold"><span class="counter" data-count="115">0</span></p>
+                  <p class="copy-muted mt-2 text-sm">Documented REST surface across controllers.</p>
+                </div>
+                <div class="metric-ring glass rounded-3xl p-5">
+                  <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Kafka-Driven Flows</p>
+                  <p class="mt-3 font-display text-4xl font-bold"><span class="counter" data-count="6">0</span></p>
+                  <p class="copy-muted mt-2 text-sm">Active notification consumers with fan-out actions.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <div class="glass rounded-[1.75rem] p-6">
+                <div class="flex items-start justify-between">
+                  <div>
+                    <p class="text-xs uppercase tracking-[0.2em] text-slate-500">Architecture Highlights</p>
+                    <h2 class="mt-2 font-display text-2xl font-bold">System Snapshot</h2>
+                  </div>
+                  <span class="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">Premium Build</span>
+                </div>
+                <ul class="copy-soft mt-5 space-y-3 text-sm">
+                  <li class="flex gap-3"><i class="fa-solid fa-shield-halved mt-1 text-sky-500"></i><span>JWT validation occurs centrally in the API Gateway, then user identity is propagated downstream via `X-User-*` headers.</span></li>
+                  <li class="flex gap-3"><i class="fa-solid fa-bolt mt-1 text-teal-500"></i><span>Card moves, mentions, invitations, premium activation, and account-state changes feed an event-driven notification pipeline.</span></li>
+                  <li class="flex gap-3"><i class="fa-solid fa-wave-square mt-1 text-orange-500"></i><span>Real-time user experience is powered through STOMP over SockJS subscriptions to board-specific topics.</span></li>
+                  <li class="flex gap-3"><i class="fa-solid fa-boxes-stacked mt-1 text-violet-500"></i><span>Docker Compose provisions MySQL, Redis, Kafka, Zookeeper, SonarQube, and the complete microservices topology.</span></li>
+                </ul>
+              </div>
+              <div class="glass rounded-[1.75rem] p-6">
+                <p class="text-xs uppercase tracking-[0.2em] text-slate-500">Current Focus</p>
+                <div class="mt-4 space-y-3">
+                  <div class="flex items-center justify-between rounded-2xl bg-slate-900/5 p-3 dark:bg-white/5"><span>Security hardening</span><span class="rounded-full bg-sky-500/10 px-3 py-1 text-xs font-semibold text-sky-700 dark:text-sky-300">In Progress</span></div>
+                  <div class="flex items-center justify-between rounded-2xl bg-slate-900/5 p-3 dark:bg-white/5"><span>JWT propagation fixes</span><span class="rounded-full bg-orange-500/10 px-3 py-1 text-xs font-semibold text-orange-700 dark:text-orange-300">Critical</span></div>
+                  <div class="flex items-center justify-between rounded-2xl bg-slate-900/5 p-3 dark:bg-white/5"><span>Docker stabilization</span><span class="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">Operational</span></div>
+                  <div class="flex items-center justify-between rounded-2xl bg-slate-900/5 p-3 dark:bg-white/5"><span>Angular UI refinement</span><span class="rounded-full bg-violet-500/10 px-3 py-1 text-xs font-semibold text-violet-700 dark:text-violet-300">UX</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="executive-summary" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-600 dark:text-sky-300"><i class="fa-solid fa-briefcase"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 01</p>
+              <h2 class="font-display text-3xl font-bold">Executive Summary</h2>
+            </div>
+          </div>
+          <div class="grid gap-6 xl:grid-cols-2">
+            <div class="space-y-4 text-[15px] leading-7 text-slate-700 dark:text-slate-300">
+              <p>Traditional task-management platforms often degrade under collaboration-heavy workloads because business logic, data ownership, and notification workflows are tightly coupled. As the number of users, boards, comments, and attachments increases, a monolithic design makes it harder to preserve responsiveness, isolate failures, and secure identity propagation across features.</p>
+              <p>FlowBoard addresses this by decomposing the domain into independently deployable services for authentication, workspace management, boards, lists, cards, comments, labels, notifications, and payments. The API Gateway centralizes request entry, Eureka enables service discovery, Kafka powers asynchronous notifications, Redis improves hot-path access patterns, and Angular provides a responsive real-time user experience.</p>
+              <p>The resulting system is architecturally aligned with enterprise SaaS expectations: security boundaries are explicit, cross-cutting concerns are centralized, operational visibility is built into the platform, and service contracts are isolated enough to support incremental scaling and future product expansion.</p>
+            </div>
+            <div class="grid gap-4">
+              <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+                <p class="text-sm font-semibold text-slate-500">Business Problem</p>
+                <p class="mt-2 text-sm leading-7 text-slate-700 dark:text-slate-300">Collaboration tools frequently struggle with live synchronization, secure multi-user workflows, and clean modularity under growth.</p>
+              </div>
+              <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+                <p class="text-sm font-semibold text-slate-500">Solution Overview</p>
+                <p class="mt-2 text-sm leading-7 text-slate-700 dark:text-slate-300">FlowBoard uses domain-specific microservices with asynchronous eventing and centralized ingress to keep user workflows responsive while preserving bounded contexts.</p>
+              </div>
+              <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+                <p class="text-sm font-semibold text-slate-500">Core Value Proposition</p>
+                <p class="mt-2 text-sm leading-7 text-slate-700 dark:text-slate-300">Secure team collaboration, real-time task movement, operational scalability, and readiness for enterprise deployment patterns such as CI/CD, observability, and horizontal growth.</p>
+              </div>
+              <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+                <p class="text-sm font-semibold text-slate-500">Enterprise Relevance</p>
+                <p class="mt-2 text-sm leading-7 text-slate-700 dark:text-slate-300">The architecture directly demonstrates patterns valued in industry: gateway-based ingress, service discovery, async messaging, zero-session REST APIs, and service-level ownership.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="project-overview" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-500/15 text-teal-600 dark:text-teal-300"><i class="fa-solid fa-compass-drafting"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 02</p>
+              <h2 class="font-display text-3xl font-bold">Project Overview</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">System Purpose</h3>
+              <p class="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-400">Provide Kanban-based planning, collaboration, task assignment, notifications, and premium subscription workflows through a modular SaaS platform.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Primary User Roles</h3>
+              <p class="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-400">Guest, Member, Board Admin, Platform Admin, and internal system actors that participate in service-to-service operations.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Real-World Applications</h3>
+              <p class="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-400">Software delivery boards, academic teamwork, remote operations planning, agile sprint coordination, and client-facing task collaboration.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Scalability Goals</h3>
+              <p class="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-400">Separate failure domains, scale hot services independently, cache repeated reads, and preserve responsiveness even as notifications and card activity increase.</p>
+            </div>
+          </div>
+          <div class="mt-6 rounded-[1.5rem] bg-slate-900 p-5 text-sm text-slate-200">
+            <p class="font-semibold text-white">Key challenges solved by the design</p>
+            <div class="mt-4 grid gap-4 lg:grid-cols-2">
+              <ul class="space-y-2">
+                <li><i class="fa-solid fa-check text-emerald-400"></i> Live collaboration through WebSocket topic subscriptions.</li>
+                <li><i class="fa-solid fa-check text-emerald-400"></i> Service isolation for auth, boards, cards, comments, labels, and billing.</li>
+                <li><i class="fa-solid fa-check text-emerald-400"></i> Asynchronous notification fan-out without blocking user actions.</li>
+              </ul>
+              <ul class="space-y-2">
+                <li><i class="fa-solid fa-check text-emerald-400"></i> JWT-based secure access across distributed APIs.</li>
+                <li><i class="fa-solid fa-check text-emerald-400"></i> Cascade delete coordination across workspace, board, list, and card domains.</li>
+                <li><i class="fa-solid fa-check text-emerald-400"></i> Premium entitlement enforcement through internal service APIs.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section id="technology-stack" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500/15 text-orange-600 dark:text-orange-300"><i class="fa-solid fa-cubes"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 03</p>
+              <h2 class="font-display text-3xl font-bold">Technology Stack</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <div class="glass rounded-3xl p-5">
+              <h3 class="font-display text-xl font-bold text-sky-600 dark:text-sky-300">Frontend</h3>
+              <ul class="mt-4 space-y-2 text-sm">
+                <li>Angular 17 standalone architecture</li>
+                <li>Angular Material</li>
+                <li>Tailwind CSS</li>
+                <li>NgRx + RxJS</li>
+                <li>CDK Drag & Drop</li>
+                <li>STOMP over SockJS</li>
+              </ul>
+            </div>
+            <div class="glass rounded-3xl p-5">
+              <h3 class="font-display text-xl font-bold text-teal-600 dark:text-teal-300">Backend</h3>
+              <ul class="mt-4 space-y-2 text-sm">
+                <li>Java 17</li>
+                <li>Spring Boot 3.2</li>
+                <li>Spring Cloud Gateway</li>
+                <li>Netflix Eureka</li>
+                <li>Spring Data JPA + Hibernate</li>
+                <li>OpenFeign / WebClient style inter-service communication</li>
+              </ul>
+            </div>
+            <div class="glass rounded-3xl p-5">
+              <h3 class="font-display text-xl font-bold text-violet-600 dark:text-violet-300">Data & Messaging</h3>
+              <ul class="mt-4 space-y-2 text-sm">
+                <li>MySQL 8 logical per-service schemas</li>
+                <li>Redis 7 caching</li>
+                <li>Apache Kafka</li>
+                <li>Zookeeper for local broker coordination</li>
+                <li>SMTP outbound email</li>
+                <li>Razorpay payment provider</li>
+              </ul>
+            </div>
+            <div class="glass rounded-3xl p-5">
+              <h3 class="font-display text-xl font-bold text-coral dark:text-orange-300">Security, Quality & Ops</h3>
+              <ul class="mt-4 space-y-2 text-sm">
+                <li>JWT + refresh token strategy</li>
+                <li>BCrypt password and OTP hashing</li>
+                <li>OAuth2 login pipeline</li>
+                <li>Docker + Docker Compose</li>
+                <li>JUnit 5, Mockito, Playwright</li>
+                <li>JaCoCo + SonarQube + Spring Boot Admin</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section id="system-architecture" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-600 dark:text-sky-300"><i class="fa-solid fa-sitemap"></i></div>
+              <div>
+                <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 04</p>
+                <h2 class="font-display text-3xl font-bold">System Architecture</h2>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button class="tab-btn active rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold dark:border-slate-700" data-tab="arch-overview">Overview</button>
+              <button class="tab-btn rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold dark:border-slate-700" data-tab="arch-flows">Lifecycle</button>
+              <button class="tab-btn rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold dark:border-slate-700" data-tab="arch-deploy">Deployment</button>
+            </div>
+          </div>
+
+          <div id="arch-overview" class="tab-panel space-y-5">
+            <p class="copy-soft text-[15px] leading-7">FlowBoard follows a layered distributed design. The Angular SPA calls the API Gateway, which resolves logical service routes using Eureka, applies authentication filters, and forwards traffic to domain services. Stateful collaboration is supported through domain-specific persistence, Redis-backed caching, and asynchronous event publication to Kafka where appropriate.</p>
+            <div class="mermaid">
+flowchart LR
+    U[User Browser<br/>Angular 17 SPA] -- "REST requests / WebSocket connect" --> G[API Gateway<br/> 8080]
+    G -. "service discovery lookup" .-> E[Eureka Server<br/> 8761]
+    G -- "Auth request / response" --> A[Auth Service<br/> 8081]
+    G -- "Workspace request / response" --> W[Workspace Service<br/> 8082]
+    G -- "Board request / response" --> B[Board Service<br/> 8083]
+    G -- "List request / response" --> L[List Service<br/> 8084]
+    G -- "Card request / response" --> C[Card Service<br/> 8085]
+    G -- "Comment request / response" --> CM[Comment Service<br/> 8086]
+    G -- "Label / checklist request / response" --> LB[Label Service<br/> 8087]
+    G -- "Notification request / response" --> N[Notification Service<br/> 8088]
+    G -- "Payment request / response" --> P[Payment Service<br/> 8089]
+    A -- "user + otp persistence" --> M[(MySQL)]
+    W -- "workspace persistence" --> M
+    B -- "board persistence" --> M
+    L -- "list persistence" --> M
+    C -- "card persistence" --> M
+    CM -- "comment persistence" --> M
+    LB -- "label persistence" --> M
+    N -- "notification persistence" --> M
+    P -- "order / subscription persistence" --> M
+    W -- "cached reads" --> R[(Redis)]
+    B -- "cached reads" --> R
+    L -- "cached reads" --> R
+    C -- "cached reads" --> R
+    P -- "entitlement cache" --> R
+    C -- "card.assigned / card.moved events" --> K[(Kafka)]
+    CM -- "mention.notification events" --> K
+    W -- "workspace.member.invited events" --> K
+    B -- "board.member.invited events" --> K
+    A -- "account.status.changed events" --> K
+    P -- "payment.premium.activated events" --> K
+    K -- "async consume + notify" --> N
+    ADM[Admin Server<br/> 9090] -. "health / metrics monitoring" .-> A
+    ADM -. "health / metrics monitoring" .-> W
+    ADM -. "health / metrics monitoring" .-> B
+    ADM -. "health / metrics monitoring" .-> C
+            </div>
+          </div>
+
+          <div id="arch-flows" class="tab-panel hidden space-y-5">
+            <div class="grid gap-5 xl:grid-cols-2">
+              <div>
+                <h3 class="font-semibold">Request lifecycle</h3>
+                <div class="mermaid mt-3">
+sequenceDiagram
+    participant Client as Angular Client
+    participant Gateway as API Gateway
+    participant Eureka as Eureka
+    participant Service as Target Service
+    participant DB as MySQL/Redis
+    Client->>Gateway: HTTP request + Bearer JWT
+    Gateway->>Gateway: Validate JWT and inject X-User-* headers
+    Gateway->>Eureka: Service discovery request for lb://service
+    Eureka-->>Gateway: Instance metadata response
+    Gateway->>Service: Forward authenticated request
+    Service->>DB: Query or update state
+    DB-->>Service: Data / cache response
+    Service-->>Gateway: DTO success payload or error response
+    Gateway-->>Client: Final HTTP response
+                </div>
+              </div>
+              <div>
+                <h3 class="font-semibold">Cascade delete workflow</h3>
+                <div class="mermaid mt-3">
+flowchart TD
+    WS[Workspace delete request] --> BS[Board internal cleanup]
+    BS --> LS[List internal cleanup]
+    LS --> CS[Card internal cleanup]
+    CS --> AUDIT[Audit + event capture]
+    AUDIT --> RESP[Consistent deletion response]
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="arch-deploy" class="tab-panel hidden space-y-5">
+            <div class="mermaid">
+flowchart TB
+    subgraph Browser
+      UI[Angular SPA / Nginx]
+    end
+    subgraph ControlPlane
+      GW[API Gateway]
+      EU[Eureka Server]
+      AD[Admin Server]
+    end
+    subgraph CoreDomain
+      AU[Auth]
+      WO[Workspace]
+      BO[Board]
+      LI[List]
+      CA[Card]
+      CO[Comment]
+      LA[Label]
+      NO[Notification]
+      PA[Payment]
+    end
+    subgraph Infra
+      SQL[(MySQL 8)]
+      RED[(Redis 7)]
+      ZK[Zookeeper]
+      KF[(Kafka)]
+      SQ[SonarQube]
+    end
+    UI --> GW
+    GW --> AU & WO & BO & LI & CA & CO & LA & NO & PA
+    AU & WO & BO & LI & CA & CO & LA & NO & PA --> EU
+    AU & WO & BO & LI & CA & CO & LA & NO & PA --> AD
+    AU & WO & BO & LI & CA & CO & LA & NO & PA --> SQL
+    WO & BO & LI & CA & PA --> RED
+    KF --- ZK
+    AU & WO & BO & CA & CO & PA --> KF
+    KF --> NO
+    SQ -. code quality .-> AU
+    SQ -. code quality .-> UI
+            </div>
+          </div>
+        </section>
+
+        <section id="uml-overview" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-300"><i class="fa-solid fa-bezier-curve"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 04A</p>
+              <h2 class="font-display text-3xl font-bold">UML Overview</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 xl:grid-cols-2">
+            <div class="space-y-4 text-[15px] leading-7 text-slate-700 dark:text-slate-300">
+              <p>FlowBoard’s UML coverage is intentionally split across structural and behavioral views so evaluators can understand both how the system is built and how it behaves at runtime. Structural UML explains services, components, classes, and relationships. Behavioral UML explains request flows, state changes, and user/system interactions.</p>
+              <p>In this documentation, the UML perspective is organized into five complementary lenses: component view for service boundaries, class view for domain modeling, sequence view for runtime message flow, state view for task lifecycle transitions, and use case view for actor-goal mapping.</p>
+              <p>This separation makes the platform easier to explain during review because each diagram answers a different architectural question instead of forcing every detail into a single overloaded picture.</p>
+            </div>
+            <div class="mermaid">
+mindmap
+  root((FlowBoard UML))
+    Structural UML
+      Component Diagram
+      Class Diagram
+      ER / Data Relationships
+    Behavioral UML
+      Sequence Diagrams
+      State Diagram
+      Use Case Diagrams
+    Deployment Context
+      Gateway
+      Eureka
+      Kafka
+      Docker
+            </div>
+          </div>
+        </section>
+
+        <section id="component-diagram" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-500/15 text-teal-600 dark:text-teal-300"><i class="fa-solid fa-puzzle-piece"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 04B</p>
+              <h2 class="font-display text-3xl font-bold">Component Diagram</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 xl:grid-cols-2">
+            <div class="space-y-4 text-[15px] leading-7 text-slate-700 dark:text-slate-300">
+              <p>The component view shows how major platform modules collaborate: the frontend presents user workflows, the gateway brokers ingress concerns, domain services own business capabilities, and shared infrastructure provides persistence, cache, discovery, messaging, and monitoring.</p>
+              <p>This diagram is useful in viva or interview settings because it explains responsibility boundaries clearly: authentication is not mixed with board logic, notification delivery is isolated from card mutation, and payment concerns are separated from workspace management even though they influence policy.</p>
+            </div>
+            <div class="mermaid">
+flowchart LR
+    FE[Angular Frontend]
+    GW[API Gateway]
+    AU[Auth Component]
+    WS[Workspace Component]
+    BO[Board Component]
+    LS[List Component]
+    CS[Card Component]
+    CO[Comment Component]
+    LB[Label Component]
+    NS[Notification Component]
+    PS[Payment Component]
+    EU[Eureka Registry]
+    KF[Kafka Broker]
+    DB[(MySQL)]
+    RD[(Redis)]
+    AD[Admin Monitoring]
+
+    FE -->|UI calls| GW
+    GW --> AU & WS & BO & LS & CS & CO & LB & NS & PS
+    AU & WS & BO & LS & CS & CO & LB & NS & PS -. register .-> EU
+    WS -->|internal HTTP| PS
+    WS -->|internal HTTP cleanup| BO
+    BO -->|internal HTTP cleanup| LS
+    BO -->|internal HTTP cleanup| CS
+    LS -->|internal HTTP cleanup| CS
+    AU & WS & BO & CS & CO & PS -->|publish events| KF
+    KF -->|consume events| NS
+    AU & WS & BO & LS & CS & CO & LB & NS & PS --> DB
+    WS & BO & LS & CS & PS --> RD
+    AD -. observe .-> AU
+    AD -. observe .-> WS
+    AD -. observe .-> BO
+    AD -. observe .-> CS
+            </div>
+          </div>
+        </section>
+
+        <section id="class-diagram" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-500/15 text-violet-600 dark:text-violet-300"><i class="fa-solid fa-diagram-project"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 04C</p>
+              <h2 class="font-display text-3xl font-bold">Class Diagram</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 xl:grid-cols-2">
+            <div class="space-y-4 text-[15px] leading-7 text-slate-700 dark:text-slate-300">
+              <p>The class diagram focuses on the core task-management domain. It centers around workspace ownership, board organization, list ordering, card lifecycle, comment collaboration, labels, checklists, and notifications. This is the best view for explaining how business entities map into service-owned models.</p>
+              <p>Because FlowBoard is a microservice platform, not every runtime relationship is a direct object reference. Many cross-service associations are represented as IDs instead of in-memory links, which preserves bounded contexts and avoids tightly coupled domain models.</p>
+            </div>
+            <div class="mermaid">
+classDiagram
+    class User {
+      +Long id
+      +String fullName
+      +String email
+      +String role
+      +Boolean isActive
+    }
+    class Workspace {
+      +Long id
+      +String name
+      +String visibility
+      +Long ownerId
+    }
+    class WorkspaceMember {
+      +Long id
+      +Long userId
+      +String role
+    }
+    class Board {
+      +Long id
+      +String name
+      +String visibility
+      +Boolean isClosed
+    }
+    class BoardMember {
+      +Long id
+      +Long userId
+      +String role
+    }
+    class TaskList {
+      +Long id
+      +String name
+      +Integer position
+      +Boolean archived
+    }
+    class Card {
+      +Long id
+      +String title
+      +String status
+      +String priority
+      +Long assigneeId
+    }
+    class CardActivity {
+      +Long id
+      +String action
+      +Long actorId
+      +LocalDateTime createdAt
+    }
+    class Comment {
+      +Long id
+      +String content
+      +Long authorId
+    }
+    class Attachment {
+      +Long id
+      +String fileName
+      +String fileUrl
+    }
+    class Label {
+      +Long id
+      +String name
+      +String color
+    }
+    class Checklist {
+      +Long id
+      +String title
+    }
+    class ChecklistItem {
+      +Long id
+      +String content
+      +Boolean completed
+    }
+    class Notification {
+      +Long id
+      +String title
+      +String type
+      +Boolean isRead
+    }
+
+    Workspace "1" --> "*" WorkspaceMember : contains
+    Workspace "1" --> "*" Board : owns
+    Board "1" --> "*" BoardMember : includes
+    Board "1" --> "*" TaskList : contains
+    TaskList "1" --> "*" Card : holds
+    Card "1" --> "*" CardActivity : logs
+    Card "1" --> "*" Comment : has
+    Card "1" --> "*" Attachment : stores
+    Board "1" --> "*" Label : defines
+    Card "1" --> "*" Checklist : tracks
+    Checklist "1" --> "*" ChecklistItem : expands
+    User --> Workspace : owns by ownerId
+    User --> BoardMember : participates
+    User --> Card : assigned via assigneeId
+    User --> Notification : receives
+            </div>
+          </div>
+        </section>
+
+        <section id="state-diagram" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-300"><i class="fa-solid fa-arrow-right-arrow-left"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 04D</p>
+              <h2 class="font-display text-3xl font-bold">State Diagram</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 xl:grid-cols-2">
+            <div class="space-y-4 text-[15px] leading-7 text-slate-700 dark:text-slate-300">
+              <p>The state model captures how a task card evolves over time. This is especially important for FlowBoard because the platform is not just storing cards; it is coordinating work progression, audit logging, assignment, due dates, and notifications around those transitions.</p>
+              <p>The project already documents statuses such as `TO_DO`, `IN_PROGRESS`, `IN_REVIEW`, and `DONE`. The state diagram below formalizes that lifecycle and adds operational side states like archival and overdue conditions.</p>
+            </div>
+            <div class="mermaid">
+stateDiagram-v2
+    [*] --> TO_DO : Card created
+    TO_DO --> IN_PROGRESS : Work started
+    IN_PROGRESS --> IN_REVIEW : Ready for review
+    IN_REVIEW --> DONE : Approved / completed
+    IN_REVIEW --> IN_PROGRESS : Rework required
+    TO_DO --> ARCHIVED : Archived before work
+    IN_PROGRESS --> ARCHIVED : Temporarily archived
+    DONE --> ARCHIVED : Closed / archived
+    TO_DO --> OVERDUE : Due date passed
+    IN_PROGRESS --> OVERDUE : Due date passed
+    OVERDUE --> IN_PROGRESS : Resumed and updated
+    OVERDUE --> IN_REVIEW : Submitted after delay
+    ARCHIVED --> TO_DO : Restored
+    ARCHIVED --> IN_PROGRESS : Restored to active work
+    DONE --> [*]
+            </div>
+          </div>
+        </section>
+
+        <section id="security-architecture" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-300"><i class="fa-solid fa-user-shield"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 05</p>
+              <h2 class="font-display text-3xl font-bold">Security Architecture</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+            <div class="space-y-4 text-[15px] leading-7 text-slate-700 dark:text-slate-300">
+              <p><strong>JWT lifecycle:</strong> Auth Service issues access and refresh tokens after successful login, OTP verification, or OAuth2 success handling. The gateway validates the token signature and extracts user identifiers and role claims before forwarding requests downstream.</p>
+              <p><strong>Authentication workflow:</strong> Public auth routes are permitted in the Auth Service security chain, while all other requests require authentication. OTP data is hashed with BCrypt, time-bounded, and tracked with attempt counts for rate limiting. OAuth2 is currently wired for Google in code; the same success-handler pattern can be extended to GitHub.</p>
+              <p><strong>Authorization model:</strong> User roles include `MEMBER`, `BOARD_ADMIN`, `PLATFORM_ADMIN`, and `SYSTEM`. Sensitive routes such as `/api/v1/admin/**` require platform-admin authority. The gateway enriches requests with `X-User-Email`, `X-User-Id`, and `X-User-Role` headers so downstream services can authorize without re-parsing tokens.</p>
+              <p><strong>Inter-service trust:</strong> Internal APIs such as `auth/internal` and `payments/internal` support cluster-only communication. In an enterprise production rollout, these should be additionally protected with mTLS, network policies, or signed service credentials to reduce reliance on network location alone.</p>
+            </div>
+            <div class="space-y-4">
+              <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+                <h3 class="font-semibold">Security Controls</h3>
+                <ul class="mt-3 space-y-2 text-sm">
+                  <li>BCrypt password hashing</li>
+                  <li>BCrypt OTP hash storage</li>
+                  <li>Stateless JWT validation in gateway</li>
+                  <li>CORS controls in gateway and services</li>
+                  <li>Role-based route restrictions</li>
+                  <li>Circuit breakers on routed service calls</li>
+                </ul>
+              </div>
+              <div class="rounded-3xl border border-amber-400/30 bg-amber-500/10 p-5 text-sm">
+                <h3 class="font-semibold text-amber-800 dark:text-amber-200">Current-state note</h3>
+                <p class="mt-2 leading-7 text-amber-900/80 dark:text-amber-100/80">Gateway configuration already centralizes auth filtering and header propagation. Redis-backed gateway rate limiting and distributed tracing are recommended hardening additions rather than fully implemented features in the current repo.</p>
+              </div>
+            </div>
+          </div>
+          <div class="mt-6 grid gap-5 xl:grid-cols-2">
+            <div class="mermaid">
+sequenceDiagram
+    participant User
+    participant Gateway as API Gateway
+    participant Auth as Auth Service
+    participant Mail as SMTP
+    User->>Auth: Register/Login or OTP request
+    Auth->>Auth: Hash OTP with BCrypt
+    Auth->>Mail: Send OTP email
+    User->>Auth: Submit OTP / credentials
+    Auth->>Auth: Validate credentials + OTP
+    Auth-->>User: Access + Refresh JWT
+    User->>Gateway: Protected API call
+    Gateway->>Gateway: Validate JWT signature
+    Gateway->>Gateway: Inject X-User-Id/X-User-Role
+    Gateway->>Service: Forward authorized request
+            </div>
+            <div class="mermaid">
+flowchart TD
+    OAUTH[Google OAuth2 login] --> CALLBACK[OAuth2 success handler]
+    CALLBACK --> USER[Load or provision user]
+    USER --> TOKEN[Generate JWT pair]
+    TOKEN --> REDIRECT[Redirect to frontend with auth context]
+    OTP[OTP challenge] --> VERIFY[Verify hashed OTP and expiry]
+    VERIFY --> TOKEN
+    GATEWAY[Gateway filter] --> CLAIMS[Extract subject, userId, role]
+    CLAIMS --> HEADERS[Propagate identity headers]
+    HEADERS --> TRUST[Downstream authorization]
+            </div>
+          </div>
+          <div class="mt-6">
+            <pre class="rounded-3xl"><code class="language-java">private static final Set&lt;String&gt; AUTH_WHITELIST = Set.of(
+    "/api/v1/auth/login",
+    "/api/v1/auth/register",
+    "/api/v1/auth/reset-password",
+    "/api/v1/auth/refresh",
+    "/oauth2"
+);
+
+ServerHttpRequest modifiedRequest = exchange.getRequest().mutate()
+    .header("X-User-Email", email)
+    .header("X-User-Id", String.valueOf(userId))
+    .header("X-User-Role", role != null ? role : "MEMBER")
+    .build();</code></pre>
+          </div>
+        </section>
+
+        <section id="database-design" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-500/15 text-violet-600 dark:text-violet-300"><i class="fa-solid fa-database"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 06</p>
+              <h2 class="font-display text-3xl font-bold">Database Design</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 xl:grid-cols-2">
+            <div class="space-y-4 text-[15px] leading-7 text-slate-700 dark:text-slate-300">
+              <p>FlowBoard uses a database-per-service strategy at the logical schema level. Confirmed schema names in the codebase include `flowboard_auth`, `flowboard_workspace`, and `flowboard_board`; the same pattern extends to the other services. This reduces coupling, preserves service autonomy, and enables targeted backup, migration, or performance tuning per domain.</p>
+              <p>Relational storage is appropriate because the platform requires integrity across membership, ordering, ownership, audit events, and payment records. Entity relationships inside a service remain strongly modeled, while cross-service references are stored as foreign-key-like identifiers rather than direct database constraints.</p>
+              <p>Redis is used as a read-performance layer in multiple services, with a configurable TTL of `10m` visible in workspace and board service properties. This is well suited for board metadata, entitlement status, and list/card lookups that are read frequently but updated less often than rendered.</p>
+              <p>Transaction boundaries are local to each microservice. Cross-service consistency is achieved through compensating operations, internal cleanup endpoints, and Kafka-backed event publication rather than distributed XA transactions.</p>
+            </div>
+            <div class="space-y-4">
+              <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+                <h3 class="font-semibold">Data isolation strategy</h3>
+                <ul class="mt-3 space-y-2 text-sm">
+                  <li>Each service owns its schema and entity lifecycle.</li>
+                  <li>Cross-service joins are avoided at the database level.</li>
+                  <li>Identifiers are exchanged over REST or Kafka events.</li>
+                  <li>Soft archival is used for some list/card states before deletion.</li>
+                </ul>
+              </div>
+              <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+                <h3 class="font-semibold">Redis caching strategy</h3>
+                <ul class="mt-3 space-y-2 text-sm">
+                  <li>Cache abstraction enabled in board, workspace, list, card, and payment paths.</li>
+                  <li>Improves repeated entitlement, board, and task retrieval.</li>
+                  <li>TTL-based expiration reduces stale data risk.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div class="mt-6 grid gap-5 xl:grid-cols-2">
+            <div class="mermaid">
+erDiagram
+    USERS ||--o{ AUTH_OTPS : supports
+    WORKSPACES ||--o{ WORKSPACE_MEMBERS : contains
+    WORKSPACES ||--o{ BOARDS : owns
+    BOARDS ||--o{ BOARD_MEMBERS : contains
+    BOARDS ||--o{ TASK_LISTS : groups
+    TASK_LISTS ||--o{ CARDS : holds
+    CARDS ||--o{ CARD_ACTIVITIES : logs
+    CARDS ||--o{ COMMENTS : discusses
+    CARDS ||--o{ ATTACHMENTS : stores
+    BOARDS ||--o{ LABELS : defines
+    CARDS ||--o{ CARD_LABELS : tags
+    CARDS ||--o{ CHECKLISTS : tracks
+    CHECKLISTS ||--o{ CHECKLIST_ITEMS : expands
+    USERS ||--o| PREMIUM_SUBSCRIPTIONS : purchases
+    USERS ||--o{ PAYMENT_ORDERS : creates
+    USERS ||--o{ NOTIFICATIONS : receives
+            </div>
+            <div class="mermaid">
+flowchart TD
+    SVC[Service owns schema] --> ORM[JPA/Hibernate mapping]
+    ORM --> MYSQL[(MySQL 8)]
+    ORM --> CACHE[(Redis cache)]
+    MYSQL --> EVENT[Domain event publish]
+    EVENT --> KAFKA[(Kafka)]
+    KAFKA --> CONSUMER[Notification / other consumers]
+    CACHE --> FAST[Low-latency reads]
+    MYSQL --> AUDIT[Durable transactional record]
+            </div>
+          </div>
+        </section>
+
+        <section id="microservice-details" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-300"><i class="fa-solid fa-microchip"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 07</p>
+              <h2 class="font-display text-3xl font-bold">Microservice Details</h2>
+            </div>
+          </div>
+          <div class="space-y-4">
+            <div class="accordion glass rounded-3xl p-5">
+              <button class="accordion-trigger flex w-full items-center justify-between text-left">
+                <span class="font-display text-xl font-bold">1. Auth Service (8081)</span><i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <div class="accordion-content">
+                <div class="pt-4 text-sm leading-7 text-slate-700 dark:text-slate-300">
+                  <p><strong>Responsibilities:</strong> registration, login, OTP challenge management, profile updates, refresh/logout flows, OAuth2 login, user search, and platform admin operations.</p>
+                  <p><strong>Entities:</strong> `User`, `AuthOtp`.</p>
+                  <p><strong>Endpoint groups:</strong> public auth routes, member profile routes, admin routes, and internal user lookup routes.</p>
+                  <p><strong>Security layer:</strong> Spring Security, JwtAuthenticationFilter, BCrypt, OAuth2 success handler, role-based route protection.</p>
+                  <p><strong>Dependencies:</strong> SMTP, Kafka producer, payment cleanup integration, MySQL.</p>
+                  <p><strong>Scaling strategy:</strong> stateless REST instances behind gateway; cache-resistant auth logic remains horizontally scalable with externalized mail and DB.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="accordion glass rounded-3xl p-5">
+              <button class="accordion-trigger flex w-full items-center justify-between text-left">
+                <span class="font-display text-xl font-bold">2. Workspace Service (8082)</span><i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <div class="accordion-content">
+                <div class="pt-4 text-sm leading-7 text-slate-700 dark:text-slate-300">
+                  <p><strong>Responsibilities:</strong> workspace CRUD, membership, public workspace listing, admin audit access, plan enforcement.</p>
+                  <p><strong>Entities:</strong> `Workspace`, `WorkspaceMember`, `WorkspaceAuditEvent`.</p>
+                  <p><strong>Dependencies:</strong> internal entitlement API in payment service, internal board cleanup API, Kafka, Redis.</p>
+                  <p><strong>Domain rules:</strong> configuration exposes free plan limits for workspace count and member count.</p>
+                  <p><strong>Scaling strategy:</strong> cache-heavy reads with isolated writes; horizontally scalable if write contention remains bounded by workspace.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="accordion glass rounded-3xl p-5">
+              <button class="accordion-trigger flex w-full items-center justify-between text-left">
+                <span class="font-display text-xl font-bold">3. Board Service (8083)</span><i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <div class="accordion-content">
+                <div class="pt-4 text-sm leading-7 text-slate-700 dark:text-slate-300">
+                  <p><strong>Responsibilities:</strong> board CRUD, visibility control, background settings, board members, admin board audit, close/delete operations.</p>
+                  <p><strong>Entities:</strong> `Board`, `BoardMember`, `BoardAuditEvent`.</p>
+                  <p><strong>Communication:</strong> internal calls to list service and card service for cleanup; publishes invitation and board events; uses Redis.</p>
+                  <p><strong>Security layer:</strong> downstream authorization based on propagated user headers and board membership checks.</p>
+                  <p><strong>Scaling strategy:</strong> partition load by workspace/board identifiers and cache board metadata.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="accordion glass rounded-3xl p-5">
+              <button class="accordion-trigger flex w-full items-center justify-between text-left">
+                <span class="font-display text-xl font-bold">4. List Service (8084)</span><i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <div class="accordion-content">
+                <div class="pt-4 text-sm leading-7 text-slate-700 dark:text-slate-300">
+                  <p><strong>Responsibilities:</strong> list creation, retrieval by board, archival, movement, reorder operations, internal board cleanup.</p>
+                  <p><strong>Entity:</strong> `TaskList`.</p>
+                  <p><strong>Communication:</strong> internal card cleanup API, Redis caching, REST-only coordination.</p>
+                  <p><strong>Scaling strategy:</strong> low-resource service with strong fit for horizontal scaling; ordering logic is the primary concurrency hotspot.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="accordion glass rounded-3xl p-5">
+              <button class="accordion-trigger flex w-full items-center justify-between text-left">
+                <span class="font-display text-xl font-bold">5. Card Service (8085)</span><i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <div class="accordion-content">
+                <div class="pt-4 text-sm leading-7 text-slate-700 dark:text-slate-300">
+                  <p><strong>Responsibilities:</strong> card lifecycle management, movement between lists, assignment, priority/status updates, activity feed, overdue queries, internal cleanup.</p>
+                  <p><strong>Entities:</strong> `Card`, `CardActivity`.</p>
+                  <p><strong>Communication:</strong> Kafka producer for assignment and move events; STOMP `/ws` endpoint for real-time board topic updates; Redis.</p>
+                  <p><strong>Security layer:</strong> gateway-authenticated requests plus domain-level access checks.</p>
+                  <p><strong>Scaling strategy:</strong> highest expected write volume; scale independently and protect ordering operations with transactional consistency.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="accordion glass rounded-3xl p-5">
+              <button class="accordion-trigger flex w-full items-center justify-between text-left">
+                <span class="font-display text-xl font-bold">6. Comment Service (8086)</span><i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <div class="accordion-content">
+                <div class="pt-4 text-sm leading-7 text-slate-700 dark:text-slate-300">
+                  <p><strong>Responsibilities:</strong> threaded comments, replies, attachment metadata, file upload and retrieval, comment count, mention event publishing.</p>
+                  <p><strong>Entities:</strong> `Comment`, `Attachment`.</p>
+                  <p><strong>Communication:</strong> Kafka events for comments/mentions, file volume mount in Docker, WebSocket endpoint support.</p>
+                  <p><strong>Scaling strategy:</strong> separate file storage concerns from metadata persistence; move uploads to object storage in future enterprise deployments.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="accordion glass rounded-3xl p-5">
+              <button class="accordion-trigger flex w-full items-center justify-between text-left">
+                <span class="font-display text-xl font-bold">7. Label Service (8087)</span><i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <div class="accordion-content">
+                <div class="pt-4 text-sm leading-7 text-slate-700 dark:text-slate-300">
+                  <p><strong>Responsibilities:</strong> board labels, card label assignments, checklists, checklist items, checklist progress.</p>
+                  <p><strong>Entities:</strong> `Label`, `Checklist`, `ChecklistItem`, `CardLabel`.</p>
+                  <p><strong>Communication:</strong> REST + optional WebSocket config for real-time messaging support.</p>
+                  <p><strong>Current-state note:</strong> frontend development environment points label-service directly to `http://localhost:8087/api/v1` rather than the gateway, which is a useful optimization target for security consistency.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="accordion glass rounded-3xl p-5">
+              <button class="accordion-trigger flex w-full items-center justify-between text-left">
+                <span class="font-display text-xl font-bold">8. Notification Service (8088)</span><i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <div class="accordion-content">
+                <div class="pt-4 text-sm leading-7 text-slate-700 dark:text-slate-300">
+                  <p><strong>Responsibilities:</strong> consume Kafka topics, persist in-app notifications, resolve card and user details over internal HTTP, send email notifications, and expose read/delete/broadcast APIs.</p>
+                  <p><strong>Entity:</strong> `Notification`.</p>
+                  <p><strong>Kafka consumers:</strong> mention, assignment, workspace invite, board invite, premium activation, account status changed.</p>
+                  <p><strong>Scaling strategy:</strong> scale consumer instances by topic partitioning and idempotency-safe notification persistence.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="accordion glass rounded-3xl p-5">
+              <button class="accordion-trigger flex w-full items-center justify-between text-left">
+                <span class="font-display text-xl font-bold">9. Payment Service (8089)</span><i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <div class="accordion-content">
+                <div class="pt-4 text-sm leading-7 text-slate-700 dark:text-slate-300">
+                  <p><strong>Responsibilities:</strong> premium summary, Razorpay checkout, payment confirmation, entitlement lookup, and user payment cleanup.</p>
+                  <p><strong>Entities:</strong> `PaymentOrder`, `PremiumSubscription`.</p>
+                  <p><strong>Communication:</strong> external Razorpay API, Redis entitlement cache, Kafka premium activation events.</p>
+                  <p><strong>Scaling strategy:</strong> horizontally scalable with external payment gateway dependencies; critical path is idempotent payment confirmation.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="event-driven-architecture" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-300"><i class="fa-solid fa-broadcast-tower"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 08</p>
+              <h2 class="font-display text-3xl font-bold">Event-Driven Architecture</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 xl:grid-cols-2">
+            <div class="space-y-4 text-[15px] leading-7 text-slate-700 dark:text-slate-300">
+              <p>FlowBoard uses Kafka to decouple user-facing workflows from notification delivery and downstream side effects. This allows card assignment, workspace invitations, and payment activation to complete quickly for the initiating user while notifications are processed asynchronously.</p>
+              <p>Confirmed producer topics in the codebase include `flowboard.card.assigned`, `flowboard.card.moved`, `flowboard.board.member.invited`, `flowboard.workspace.member.invited`, `flowboard.payment.premium.activated`, `flowboard.mention.notification`, and `flowboard.account.status.changed`. Notification service defines additional topics such as overdue and comment topics for future extension.</p>
+              <p>Retry strategy in the current code relies primarily on Kafka consumer durability and logging on failure. For production hardening, dead-letter topics, retry backoff policies, and idempotency keys should be introduced for side-effect safety at scale.</p>
+            </div>
+            <div class="space-y-4">
+              <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+                <h3 class="font-semibold">Producer domains</h3>
+                <ul class="mt-3 space-y-2 text-sm">
+                  <li>Card Service: assignment, movement</li>
+                  <li>Comment Service: mention and comment-related events</li>
+                  <li>Workspace Service: member invitation</li>
+                  <li>Board Service: board invitation</li>
+                  <li>Payment Service: premium activation</li>
+                  <li>Auth Service: account status changes</li>
+                </ul>
+              </div>
+              <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+                <h3 class="font-semibold">Consumer actions</h3>
+                <ul class="mt-3 space-y-2 text-sm">
+                  <li>Persist notification row in MySQL</li>
+                  <li>Resolve user or card metadata over internal REST</li>
+                  <li>Send transactional email</li>
+                  <li>Build deep link metadata for UI navigation</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div class="mt-6 grid gap-5 xl:grid-cols-2">
+            <div class="mermaid">
+flowchart LR
+    CS[Card Service] -->|card.assigned / card.moved| K[(Kafka)]
+    CMS[Comment Service] -->|mention.notification| K
+    WS[Workspace Service] -->|workspace.member.invited| K
+    BS[Board Service] -->|board.member.invited| K
+    PS[Payment Service] -->|payment.premium.activated| K
+    AS[Auth Service] -->|account.status.changed| K
+    K --> NS[Notification Service]
+    NS --> DB[(notifications)]
+    NS --> MAIL[SMTP Email]
+    NS --> UI[In-app notification APIs]
+            </div>
+            <div class="mermaid">
+sequenceDiagram
+    participant User
+    participant Card as Card Service
+    participant Kafka as Kafka
+    participant Notify as Notification Service
+    participant Auth as Auth Internal API
+    participant Mail as Email
+    User->>Card: Assign teammate to card
+    Card->>Kafka: publish card.assigned
+    Kafka->>Notify: consume assignment event
+    Notify->>Auth: resolve assignee details
+    Auth-->>Notify: user profile/email
+    Notify->>Notify: persist notification
+    Notify->>Mail: send assignment email
+    Notify-->>User: notification visible on next fetch
+            </div>
+          </div>
+        </section>
+
+        <section id="api-gateway-details" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-500/15 text-rose-600 dark:text-rose-300"><i class="fa-solid fa-road"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 09</p>
+              <h2 class="font-display text-3xl font-bold">API Gateway Details</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 xl:grid-cols-2">
+            <div class="space-y-4 text-[15px] leading-7 text-slate-700 dark:text-slate-300">
+              <p>The API Gateway is the system ingress controller on port `8080`. It owns central routing, CORS policy, JWT validation, Swagger aggregation, and resilience behavior. Routes use `lb://` URIs, which means concrete instances are resolved dynamically using Eureka service discovery.</p>
+              <p>Every protected request passes through `AuthenticationFilterGatewayFilterFactory`, which validates the Bearer token and injects identity headers downstream. This is a crucial design choice because it keeps services focused on domain authorization while avoiding repeated JWT parsing logic in every microservice.</p>
+              <p>Resilience4j circuit breakers are configured per routed service, creating isolated fallback boundaries for auth, workspace, payment, board, list, comment, label, card, and notification flows.</p>
+              <p><strong>Rate limiting and tracing:</strong> these are stated responsibilities of the gateway architecture. The current repo has the right centralization point, but Redis-backed request limiting and distributed tracing should be added to fully satisfy enterprise non-functional requirements.</p>
+            </div>
+            <div class="space-y-4">
+              <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+                <h3 class="font-semibold">Current routing groups</h3>
+                <ul class="mt-3 space-y-2 text-sm">
+                  <li>`/api/v1/auth/**` and `/api/v1/admin/**`</li>
+                  <li>`/api/v1/workspaces/**`</li>
+                  <li>`/api/v1/boards/**`, `/api/v1/lists/**`, `/api/v1/cards/**`</li>
+                  <li>comments, labels, notifications, payments</li>
+                  <li>aggregated `/v3/api-docs/*` routes for Swagger UI</li>
+                </ul>
+              </div>
+              <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+                <h3 class="font-semibold">Enterprise benefits</h3>
+                <ul class="mt-3 space-y-2 text-sm">
+                  <li>Single external API surface</li>
+                  <li>Central auth enforcement</li>
+                  <li>Simplified frontend service discovery</li>
+                  <li>Per-service circuit breaker configuration</li>
+                  <li>Easy insertion point for tracing and quotas</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="real-time-communication" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-lime-500/15 text-lime-600 dark:text-lime-300"><i class="fa-solid fa-wifi"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 10</p>
+              <h2 class="font-display text-3xl font-bold">Real-Time Communication</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 xl:grid-cols-2">
+            <div class="space-y-4 text-[15px] leading-7 text-slate-700 dark:text-slate-300">
+              <p>The Angular frontend includes a `WebSocketService` that connects using SockJS to `environment.wsUrl`, currently `http://localhost:8085/ws`, and subscribes to board-scoped topics such as `/topic/board/{boardId}/card-moved` and `/topic/board/{boardId}/comment-added`.</p>
+              <p>Card, comment, and label services each define STOMP broker configuration with `/topic` and `/queue` destinations and `/app` application prefixes. In practice, the active frontend integration is centered on card-service for board updates, while additional services are positioned for broader real-time usage.</p>
+              <p>For enterprise scaling, the simple in-memory broker should evolve toward a distributed message broker relay or dedicated WebSocket gateway to support clustered node fan-out and sticky-session-independent event delivery.</p>
+            </div>
+            <div class="mermaid">
+flowchart LR
+    UI[Angular WebSocketService] -->|SockJS / STOMP| WS[/ws endpoint on card-service/]
+    WS --> TOPIC1[Board topic: card moved]
+    WS --> TOPIC2[Board topic: comment added]
+    TOPIC1 --> STORE[NgRx board actions]
+    TOPIC2 --> STORE
+    STORE --> VIEW[Live UI refresh]
+            </div>
+          </div>
+        </section>
+
+        <section id="use-case-diagrams" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300"><i class="fa-solid fa-users-viewfinder"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 11</p>
+              <h2 class="font-display text-3xl font-bold">Use Case Diagrams</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 xl:grid-cols-3">
+            <div class="mermaid">
+flowchart TD
+    USER((User)) --> UC1[Register / Login]
+    USER --> UC2[Create Workspace]
+    USER --> UC3[Create Board]
+    USER --> UC4[Move Card]
+    USER --> UC5[Comment on Card]
+    USER --> UC6[Receive Notifications]
+    USER --> UC7[Upgrade to Premium]
+            </div>
+            <div class="mermaid">
+flowchart TD
+    ADMIN((Platform Admin)) --> A1[View Users]
+    ADMIN --> A2[Suspend or Restore User]
+    ADMIN --> A3[Broadcast Notification]
+    ADMIN --> A4[Inspect Audit Data]
+    ADMIN --> A5[Review Platform Stats]
+            </div>
+            <div class="mermaid">
+flowchart TD
+    SYSTEM((System)) --> S1[Validate JWT]
+    SYSTEM --> S2[Resolve Service via Eureka]
+    SYSTEM --> S3[Publish Kafka Events]
+    SYSTEM --> S4[Consume Notifications]
+    SYSTEM --> S5[Enforce Entitlements]
+            </div>
+          </div>
+        </section>
+
+        <section id="use-case-specifications" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-300"><i class="fa-solid fa-list-check"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 12</p>
+              <h2 class="font-display text-3xl font-bold">Detailed Use Case Specifications</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 xl:grid-cols-2">
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Use Case: OTP Registration</h3>
+              <p class="mt-3 text-sm leading-7"><strong>Actor:</strong> Guest User</p>
+              <p class="text-sm leading-7"><strong>Preconditions:</strong> Email is not already registered.</p>
+              <p class="text-sm leading-7"><strong>Main Flow:</strong> Request OTP, receive email, verify OTP, create user, issue JWT pair.</p>
+              <p class="text-sm leading-7"><strong>Alternative Flow:</strong> OTP expired, attempts exceeded, duplicate email.</p>
+              <p class="text-sm leading-7"><strong>Result:</strong> User account is created and authenticated.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Use Case: Create Workspace</h3>
+              <p class="mt-3 text-sm leading-7"><strong>Actor:</strong> Authenticated Member</p>
+              <p class="text-sm leading-7"><strong>Preconditions:</strong> Valid JWT and plan eligibility.</p>
+              <p class="text-sm leading-7"><strong>Main Flow:</strong> Gateway validates JWT, workspace service checks entitlement/free limit, persists workspace, emits event.</p>
+              <p class="text-sm leading-7"><strong>Alternative Flow:</strong> Premium required or membership limits exceeded.</p>
+              <p class="text-sm leading-7"><strong>Result:</strong> Workspace appears in dashboard and audit log.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Use Case: Create Board and Invite Members</h3>
+              <p class="mt-3 text-sm leading-7"><strong>Actor:</strong> Board Admin</p>
+              <p class="text-sm leading-7"><strong>Preconditions:</strong> User belongs to the workspace.</p>
+              <p class="text-sm leading-7"><strong>Main Flow:</strong> Create board, add members with role, publish board invitation event.</p>
+              <p class="text-sm leading-7"><strong>Alternative Flow:</strong> Duplicate member or insufficient rights.</p>
+              <p class="text-sm leading-7"><strong>Result:</strong> Board is provisioned and invite notifications are generated.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Use Case: Move Card in Real Time</h3>
+              <p class="mt-3 text-sm leading-7"><strong>Actor:</strong> Team Member</p>
+              <p class="text-sm leading-7"><strong>Preconditions:</strong> User has board access and card exists.</p>
+              <p class="text-sm leading-7"><strong>Main Flow:</strong> UI sends move request, card service updates ordering, publishes event, STOMP subscribers refresh state.</p>
+              <p class="text-sm leading-7"><strong>Alternative Flow:</strong> Stale ordering or access denied.</p>
+              <p class="text-sm leading-7"><strong>Result:</strong> Card appears in the new list for all connected viewers.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Use Case: Premium Checkout</h3>
+              <p class="mt-3 text-sm leading-7"><strong>Actor:</strong> Member</p>
+              <p class="text-sm leading-7"><strong>Preconditions:</strong> User is authenticated.</p>
+              <p class="text-sm leading-7"><strong>Main Flow:</strong> Create Razorpay order, complete payment, confirm payment, activate subscription, publish premium event.</p>
+              <p class="text-sm leading-7"><strong>Alternative Flow:</strong> Verification failure or duplicate confirmation.</p>
+              <p class="text-sm leading-7"><strong>Result:</strong> Subscription is activated and user receives confirmation/invoice.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Use Case: Admin Suspension</h3>
+              <p class="mt-3 text-sm leading-7"><strong>Actor:</strong> Platform Admin</p>
+              <p class="text-sm leading-7"><strong>Preconditions:</strong> Admin is authenticated with elevated role.</p>
+              <p class="text-sm leading-7"><strong>Main Flow:</strong> Admin invokes suspend route, auth service updates user state, publishes account-status event, notification service emails user.</p>
+              <p class="text-sm leading-7"><strong>Alternative Flow:</strong> User not found or invalid role transition.</p>
+              <p class="text-sm leading-7"><strong>Result:</strong> User access is blocked and audit visibility improves.</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="exception-handling" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500/15 text-red-600 dark:text-red-300"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 13</p>
+              <h2 class="font-display text-3xl font-bold">Exception Handling Strategy</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 xl:grid-cols-2">
+            <div class="space-y-4 text-[15px] leading-7 text-slate-700 dark:text-slate-300">
+              <p>Each service includes a `GlobalExceptionHandler` class to centralize mapping from domain exceptions to HTTP responses. Common exception types visible in the repo include `ResourceNotFoundException`, `UnauthorizedException`, `AccessDeniedException`, `DuplicateResourceException`, `PaymentRequiredException`, and validation-related failures.</p>
+              <p>Auth Service additionally defines an `ErrorResponse` structure with fields for HTTP status, error name, message, field-level validation errors, and timestamp. This is a sound pattern for consistent frontend error display and should be standardized across all services.</p>
+              <p>Gateway-level failures are handled separately. Invalid or missing Bearer tokens return JSON `401` responses from the gateway filter before any downstream service receives the request.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Recommended standard response contract</h3>
+              <pre class="mt-4 rounded-2xl"><code class="language-json">{
+  "status": 400,
+  "error": "Validation Failed",
+  "message": "One or more fields are invalid",
+  "fieldErrors": {
+    "email": "must be a valid email",
+    "password": "must be at least 8 characters"
+  },
+  "timestamp": "2026-05-12T10:15:30"
+}</code></pre>
+            </div>
+          </div>
+        </section>
+
+        <section id="testing-strategy" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/15 text-blue-600 dark:text-blue-300"><i class="fa-solid fa-vial-circle-check"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 14</p>
+              <h2 class="font-display text-3xl font-bold">Testing Strategy</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Unit Testing</h3>
+              <p class="mt-3 text-sm leading-7">Service implementations, Kafka producers, security utilities, and controllers are covered with JUnit 5 and Mockito.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Integration Testing</h3>
+              <p class="mt-3 text-sm leading-7">Spring context, security filters, repositories, and internal client behavior can be validated using module-level Spring tests.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Frontend Testing</h3>
+              <p class="mt-3 text-sm leading-7">Karma/Jasmine unit tests verify standalone Angular components, pipes, services, and NgRx flows.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">End-to-End</h3>
+              <p class="mt-3 text-sm leading-7">Playwright covers login, dashboard, and guest dashboard flows from user perspective.</p>
+            </div>
+          </div>
+          <div class="mt-6 text-[15px] leading-7 text-slate-700 dark:text-slate-300">
+            <p>Code quality is reinforced through JaCoCo coverage reports and SonarQube scanning. The backend README describes an aggregate JaCoCo XML report for SonarQube, making the project suitable for formal evaluation pipelines and measurable quality gates.</p>
+          </div>
+        </section>
+
+        <section id="devops-deployment" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-300"><i class="fa-solid fa-server"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 15</p>
+              <h2 class="font-display text-3xl font-bold">DevOps & Deployment</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 xl:grid-cols-2">
+            <div class="space-y-4 text-[15px] leading-7 text-slate-700 dark:text-slate-300">
+              <p>The project ships with a Docker Compose topology that provisions MySQL, Redis, Zookeeper, Kafka, SonarQube, Eureka Server, Admin Server, API Gateway, all nine domain services, and the Angular frontend container. This creates a strong local and demo deployment story.</p>
+              <p>Health checks are present for infrastructure and some platform services, which reduces startup-order fragility. Spring Boot Admin provides service monitoring, while actuator endpoints expose health and runtime insights.</p>
+              <p>Kubernetes readiness is architectural rather than fully implemented: because services are stateless at the application layer and rely on external persistence/brokers, the codebase can be container-orchestrated with relatively modest packaging work.</p>
+              <p>Centralized logging is currently log-based and service-local. An enterprise production rollout should route logs to ELK, Loki, or OpenSearch and pair them with correlation IDs for end-to-end tracing.</p>
+            </div>
+            <div class="mermaid">
+flowchart TB
+    DEV[Developer / CI] --> BUILD[Build Java + Angular artifacts]
+    BUILD --> IMG[Docker images]
+    IMG --> COMP[Docker Compose deployment]
+    COMP --> GW[API Gateway]
+    COMP --> SVCS[Microservices]
+    COMP --> INFRA[MySQL / Redis / Kafka / Eureka / Admin]
+    SVCS --> HC[Actuator health checks]
+    HC --> ADM[Spring Boot Admin dashboard]
+    BUILD --> SONAR[SonarQube analysis]
+            </div>
+          </div>
+          <div class="mt-6">
+            <pre class="rounded-3xl"><code class="language-yaml">api-gateway:
+  ports:
+    - "8080:8080"
+  environment:
+    EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+    AUTH_SERVICE_INTERNAL_BASE_URL: http://auth-service:8081/api/v1/auth/internal
+  depends_on:
+    eureka-server:
+      condition: service_healthy</code></pre>
+          </div>
+        </section>
+
+        <section id="performance-scalability" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500/15 text-orange-600 dark:text-orange-300"><i class="fa-solid fa-gauge-high"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 16</p>
+              <h2 class="font-display text-3xl font-bold">Performance & Scalability</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Redis Caching</h3>
+              <p class="mt-3 text-sm leading-7">Reduces repeated reads for boards, lists, entitlements, and other frequently accessed domain views.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Horizontal Scaling</h3>
+              <p class="mt-3 text-sm leading-7">Stateless services can scale independently behind the gateway; hot paths center on card and notification traffic.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Async Processing</h3>
+              <p class="mt-3 text-sm leading-7">Kafka removes notification and communication side effects from synchronous request latency.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">WebSocket Scaling</h3>
+              <p class="mt-3 text-sm leading-7">Current simple broker is ideal for development; cluster-wide scaling should externalize broker state or relay messaging.</p>
+            </div>
+          </div>
+          <div class="mt-6 text-[15px] leading-7 text-slate-700 dark:text-slate-300">
+            <p>Database optimization should focus on entity indexing for user lookup, board/list ordering, and notification retrieval. Because list and card movement can create write contention, batching and optimistic locking strategies are practical next steps for high-concurrency boards.</p>
+          </div>
+        </section>
+
+        <section id="challenges-solutions" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-300"><i class="fa-solid fa-screwdriver-wrench"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 17</p>
+              <h2 class="font-display text-3xl font-bold">Challenges & Solutions</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 xl:grid-cols-2">
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">JWT propagation issue</h3>
+              <p class="mt-3 text-sm leading-7">Challenge: downstream services need identity without duplicating token parsing. Solution: gateway validates JWT and injects trusted `X-User-*` headers, creating a clear ingress trust boundary.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Docker networking</h3>
+              <p class="mt-3 text-sm leading-7">Challenge: local hostnames and startup order become brittle in multi-container systems. Solution: Compose network aliases, health checks, and environment-based internal URLs stabilize service communication.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Service discovery</h3>
+              <p class="mt-3 text-sm leading-7">Challenge: static service endpoints reduce deployment flexibility. Solution: Eureka plus `lb://` gateway routing enables dynamic service registration and discovery.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Async consistency</h3>
+              <p class="mt-3 text-sm leading-7">Challenge: notifications should not delay user actions. Solution: event publication decouples side effects, while notification service resolves user/card context asynchronously.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">CORS handling</h3>
+              <p class="mt-3 text-sm leading-7">Challenge: frontend and service origins differ in development. Solution: gateway global CORS plus service-level CORS config reduce browser rejection risk, though standardizing all dev traffic through the gateway remains a strong next step.</p>
+            </div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+              <h3 class="font-semibold">Notification fan-out</h3>
+              <p class="mt-3 text-sm leading-7">Challenge: a single event may require storage, email, and UI deep linking. Solution: notification service centralizes event enrichment, persistence, and dispatch logic.</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="future-enhancements" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-600 dark:text-sky-300"><i class="fa-solid fa-rocket"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 18</p>
+              <h2 class="font-display text-3xl font-bold">Future Enhancements</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800"><h3 class="font-semibold">AI task recommendations</h3><p class="mt-3 text-sm leading-7">Predict priorities, due-date risk, and suggested assignees from activity history.</p></div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800"><h3 class="font-semibold">Analytics dashboard</h3><p class="mt-3 text-sm leading-7">Burn-down, lead time, board throughput, and notification engagement metrics.</p></div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800"><h3 class="font-semibold">Mobile application</h3><p class="mt-3 text-sm leading-7">Native or Flutter app for push notifications and offline task access.</p></div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800"><h3 class="font-semibold">Multi-tenant architecture</h3><p class="mt-3 text-sm leading-7">Tenant-aware isolation with custom branding, quotas, and billing boundaries.</p></div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800"><h3 class="font-semibold">Kubernetes deployment</h3><p class="mt-3 text-sm leading-7">Helm charts, ingress, autoscaling, and secret management for cloud rollout.</p></div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800"><h3 class="font-semibold">Event sourcing</h3><p class="mt-3 text-sm leading-7">Capture domain state transitions as append-only event streams.</p></div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800"><h3 class="font-semibold">CQRS</h3><p class="mt-3 text-sm leading-7">Separate write models from read-optimized projections for large boards.</p></div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800"><h3 class="font-semibold">Distributed tracing</h3><p class="mt-3 text-sm leading-7">OpenTelemetry-based request tracing across gateway, services, and brokers.</p></div>
+          </div>
+        </section>
+
+        <section id="evaluation" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-500/15 text-teal-600 dark:text-teal-300"><i class="fa-solid fa-ranking-star"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 19</p>
+              <h2 class="font-display text-3xl font-bold">Evaluation Section</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 xl:grid-cols-2">
+            <div class="space-y-4 text-[15px] leading-7 text-slate-700 dark:text-slate-300">
+              <p><strong>Strengths:</strong> clear microservice boundaries, rich security posture, modern frontend architecture, real-time task interaction, event-driven notifications, Dockerized deployment, and good testing/quality tooling.</p>
+              <p><strong>Weaknesses:</strong> some enterprise features are partially implemented rather than fully closed-loop, including gateway rate limiting, distributed tracing, and truly clustered WebSocket infrastructure.</p>
+              <p><strong>Industry relevance:</strong> very high for SaaS product engineering, platform teams, DevOps, backend architecture, and full-stack interview settings because the project demonstrates real production concerns instead of purely CRUD-oriented design.</p>
+              <p><strong>Technical complexity:</strong> high. The project combines identity, payments, microservices, async processing, and a modern SPA in one platform.</p>
+              <p><strong>Innovation level:</strong> moderate-to-high. The novelty is strongest in the architectural breadth and integration quality rather than in inventing a brand-new product category.</p>
+            </div>
+            <div class="space-y-4">
+              <div>
+                <div class="mb-1 flex justify-between text-sm font-semibold"><span>Academic Evaluation Score</span><span>91 / 100</span></div>
+                <div class="score-bar h-3 rounded-full bg-slate-200 dark:bg-slate-800"><span style="width: 91%"></span></div>
+              </div>
+              <div>
+                <div class="mb-1 flex justify-between text-sm font-semibold"><span>Enterprise Readiness Score</span><span>84 / 100</span></div>
+                <div class="score-bar h-3 rounded-full bg-slate-200 dark:bg-slate-800"><span style="width: 84%"></span></div>
+              </div>
+              <div>
+                <div class="mb-1 flex justify-between text-sm font-semibold"><span>Security Maturity</span><span>86 / 100</span></div>
+                <div class="score-bar h-3 rounded-full bg-slate-200 dark:bg-slate-800"><span style="width: 86%"></span></div>
+              </div>
+              <div>
+                <div class="mb-1 flex justify-between text-sm font-semibold"><span>Operational Maturity</span><span>80 / 100</span></div>
+                <div class="score-bar h-3 rounded-full bg-slate-200 dark:bg-slate-800"><span style="width: 80%"></span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="presentation-strategy" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-500/15 text-purple-600 dark:text-purple-300"><i class="fa-solid fa-person-chalkboard"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 20</p>
+              <h2 class="font-display text-3xl font-bold">Presentation Strategy</h2>
+            </div>
+          </div>
+          <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800"><h3 class="font-semibold">How to present</h3><p class="mt-3 text-sm leading-7">Start with the business problem, then move from architecture overview to one or two signature workflows.</p></div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800"><h3 class="font-semibold">Important talking points</h3><p class="mt-3 text-sm leading-7">Gateway-based JWT validation, Kafka notifications, Dockerized deployment, STOMP live updates, and payment entitlements.</p></div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800"><h3 class="font-semibold">Architecture tips</h3><p class="mt-3 text-sm leading-7">Explain bounded contexts first, then highlight why async processing and service discovery matter under scale.</p></div>
+            <div class="rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800"><h3 class="font-semibold">Viva strategy</h3><p class="mt-3 text-sm leading-7">Be explicit about current implementation versus planned enterprise upgrades. Evaluators reward honesty plus architectural clarity.</p></div>
+          </div>
+          <div class="mt-6 rounded-3xl border border-slate-200/60 p-5 dark:border-slate-800">
+            <h3 class="font-semibold">Common evaluator questions to prepare for</h3>
+            <ul class="mt-3 space-y-2 text-sm">
+              <li>Why microservices instead of a monolith?</li>
+              <li>How is JWT trusted across services?</li>
+              <li>What happens if Kafka or notification-service is down?</li>
+              <li>How do you prevent duplicate payment confirmation?</li>
+              <li>How would you scale WebSockets in production?</li>
+            </ul>
+          </div>
+        </section>
+
+        <section id="interview-questions" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-500/15 text-slate-700 dark:text-slate-300"><i class="fa-solid fa-circle-question"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 21</p>
+              <h2 class="font-display text-3xl font-bold">Interview / Viva Questions</h2>
+            </div>
+          </div>
+          <div class="space-y-3">
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">1. Why was microservices architecture chosen for FlowBoard?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">Because FlowBoard spans identity, task workflows, notifications, and billing. These domains evolve at different speeds and have different scaling characteristics, making microservices a strong fit for isolation, ownership, and failure containment.</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">2. How does API Gateway improve the system?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">It creates a single entry point for clients, centralizes CORS and JWT validation, aggregates Swagger docs, and acts as the best place to add tracing, quotas, and resilience patterns.</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">3. How is JWT used across services?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">Auth Service issues the token. Gateway validates it and propagates trusted identity headers downstream, which keeps services simpler and consistent.</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">4. Why not let every service validate JWT independently?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">That duplicates security logic, increases drift risk, and complicates maintenance. Central validation at ingress is cleaner, though defense-in-depth can still be added for critical services.</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">5. What is the purpose of Eureka Server?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">It acts as the service registry so the gateway and services can discover active instances without relying on hard-coded addresses.</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">6. How does Kafka help FlowBoard?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">Kafka decouples actions like assignment or premium activation from slower side effects like email delivery and notification enrichment, which reduces synchronous latency.</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">7. What if notification-service is unavailable?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">User-facing operations can still succeed if the event is published. The consumer can process queued events later once the service recovers, which is a key reliability benefit of async design.</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">8. How does OTP improve security?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">It adds possession-based verification for registration, login, and password reset flows. Since OTPs are hashed, expired, and attempt-limited, they are safer than plain storage.</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">9. How is OAuth2 integrated?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">Spring Security OAuth2 client handles the provider exchange. The success handler then maps the user, issues JWT tokens, and redirects back to the frontend. Google is currently implemented; GitHub is a natural extension.</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">10. Why use Redis in this project?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">Redis improves response time for frequently requested domain data and entitlement checks, reducing direct database pressure on repeated reads.</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">11. How is real-time collaboration achieved?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">The frontend connects using STOMP over SockJS and subscribes to board-specific topics so card movement and comment activity can be reflected without a page refresh.</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">12. What is the difference between REST communication and Kafka communication here?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">REST is used for synchronous, immediate outcomes like fetching a board or checking entitlement. Kafka is used when actions can be handled later, such as notification dispatch.</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">13. How is cascade deletion managed safely?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">Workspace-service triggers board-service cleanup, board-service triggers list/card cleanup, and internal endpoints preserve ownership boundaries while coordinating deletion order.</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">14. Why is database-per-service important?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">It prevents accidental tight coupling, allows independent schema evolution, and matches the autonomy expected in microservice systems.</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">15. How does payment-service integrate with the rest of the system?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">It manages checkout and confirmation with Razorpay, exposes entitlement APIs for workspace policy enforcement, and emits premium activation events for notifications.</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">16. What quality controls are present in the repo?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">JUnit 5, Mockito, component/service specs in Angular, Playwright E2E coverage, JaCoCo reports, and SonarQube analysis all contribute to measurable quality.</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">17. What are the biggest current risks?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">JWT propagation consistency, dev-time route standardization, retry/idempotency maturity for async flows, and clustering strategy for WebSockets are the main architectural risks.</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">18. How would you make the system production-ready for large enterprises?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">Add Kubernetes manifests, secret management, request rate limiting, centralized logging, OpenTelemetry tracing, dead-letter queues, object storage for attachments, and mTLS for internal services.</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">19. Why is SonarQube relevant in a project like this?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">It provides static analysis, maintainability metrics, and quality gate enforcement, which helps prove engineering maturity beyond just “the app runs.”</p></div></div>
+            <div class="accordion glass rounded-3xl p-5"><button class="accordion-trigger flex w-full items-center justify-between text-left"><span class="font-semibold">20. If you had to justify this project in one line to an interviewer, what would you say?</span><i class="fa-solid fa-chevron-down"></i></button><div class="accordion-content"><p class="pt-4 text-sm leading-7">FlowBoard is a full-stack enterprise collaboration platform that demonstrates modern distributed-system design, secure identity propagation, async eventing, and production-minded delivery practices.</p></div></div>
+          </div>
+        </section>
+
+        <section id="conclusion" class="section-anchor glass rounded-[2rem] p-6 sm:p-8">
+          <div class="mb-6 flex items-center gap-3">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-300"><i class="fa-solid fa-flag-checkered"></i></div>
+            <div>
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Section 22</p>
+              <h2 class="font-display text-3xl font-bold">Conclusion</h2>
+            </div>
+          </div>
+          <div class="space-y-4 text-[15px] leading-7 text-slate-700 dark:text-slate-300">
+            <p>FlowBoard is a strong demonstration of enterprise application engineering. It combines a modern Angular frontend with a rich Spring Boot microservices backend, layered security controls, real-time collaboration, asynchronous notifications, and payment-aware business rules.</p>
+            <p>From an academic standpoint, the project shows depth across architecture, coding, DevOps, security, and testing. From an industry standpoint, it mirrors real SaaS concerns such as ingress control, service discovery, bounded contexts, messaging, observability, and horizontal scale.</p>
+            <p>The most valuable learning outcome is not just that each technology appears in the stack, but that they are composed meaningfully: gateway for trust, Kafka for decoupling, Redis for speed, Docker for reproducibility, and domain services for clarity. That makes FlowBoard a credible portfolio project, a strong final-year review submission, and a compelling interview discussion piece.</p>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-clike.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    const root = document.documentElement;
+    const savedTheme = localStorage.getItem('flowboard-doc-theme');
+    if (savedTheme === 'dark') root.classList.add('dark');
+
+    const themeToggle = document.getElementById('themeToggle');
+    const topbar = document.getElementById('topbar');
+
+    const syncTopbar = () => {
+      topbar.classList.toggle('is-collapsed', window.scrollY > 24);
+    };
+    syncTopbar();
+    window.addEventListener('scroll', syncTopbar, { passive: true });
+
+    const renderMermaid = async () => {
+      const isDark = root.classList.contains('dark');
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: 'loose',
+        theme: isDark ? 'dark' : 'base',
+        themeVariables: isDark ? {
+          background: '#0b1523',
+          primaryColor: '#132235',
+          primaryTextColor: '#f8fbff',
+          primaryBorderColor: '#67e8f9',
+          secondaryColor: '#132235',
+          secondaryTextColor: '#e2ebf7',
+          tertiaryColor: '#102033',
+          tertiaryTextColor: '#e2ebf7',
+          lineColor: '#c7d2e3',
+          textColor: '#f8fbff',
+          mainBkg: '#132235',
+          actorBkg: '#132235',
+          actorBorder: '#7dd3fc',
+          actorTextColor: '#ffffff',
+          labelBoxBkgColor: '#18324e',
+          labelBoxBorderColor: '#7dd3fc',
+          labelTextColor: '#ffffff',
+          signalColor: '#e2ebf7',
+          signalTextColor: '#ffffff',
+          noteBkgColor: '#18324e',
+          noteBorderColor: '#7dd3fc',
+          noteTextColor: '#ffffff'
+        } : {
+          background: '#f8fbff',
+          primaryColor: '#ebf5ff',
+          primaryTextColor: '#0f172a',
+          primaryBorderColor: '#0284c7',
+          secondaryColor: '#f8fbff',
+          secondaryTextColor: '#0f172a',
+          tertiaryColor: '#eef8ff',
+          tertiaryTextColor: '#0f172a',
+          lineColor: '#334155',
+          textColor: '#0f172a',
+          mainBkg: '#eef6ff',
+          actorBkg: '#ffffff',
+          actorBorder: '#0284c7',
+          actorTextColor: '#0f172a',
+          labelBoxBkgColor: '#dff2ff',
+          labelBoxBorderColor: '#0ea5e9',
+          labelTextColor: '#0f172a',
+          signalColor: '#0f172a',
+          signalTextColor: '#0f172a',
+          noteBkgColor: '#ecfeff',
+          noteBorderColor: '#0ea5e9',
+          noteTextColor: '#0f172a'
+        }
+      });
+
+      const nodes = document.querySelectorAll('.mermaid');
+      nodes.forEach((node, index) => {
+        const source = node.getAttribute('data-source') || node.textContent;
+        node.setAttribute('data-source', source);
+        node.innerHTML = source;
+        node.removeAttribute('data-processed');
+        if (!node.id) {
+          node.id = `mermaid-diagram-${index}`;
+        }
+      });
+
+      await mermaid.run({ querySelector: '.mermaid' });
+    };
+
+    themeToggle.addEventListener('click', async () => {
+      root.classList.toggle('dark');
+      localStorage.setItem('flowboard-doc-theme', root.classList.contains('dark') ? 'dark' : 'light');
+      await renderMermaid();
+    });
+
+    renderMermaid();
+
+    document.querySelectorAll('.accordion').forEach((accordion) => {
+      const trigger = accordion.querySelector('.accordion-trigger');
+      const content = accordion.querySelector('.accordion-content');
+      trigger.addEventListener('click', () => {
+        const open = accordion.classList.toggle('open');
+        content.style.maxHeight = open ? content.scrollHeight + 'px' : '0px';
+        trigger.querySelector('i').style.transform = open ? 'rotate(180deg)' : 'rotate(0deg)';
+      });
+    });
+
+    const counters = document.querySelectorAll('.counter');
+    const animateCounter = (el) => {
+      const target = parseInt(el.dataset.count, 10);
+      let current = 0;
+      const step = Math.max(1, Math.ceil(target / 60));
+      const tick = () => {
+        current += step;
+        if (current >= target) {
+          el.textContent = target.toString();
+          return;
+        }
+        el.textContent = current.toString();
+        requestAnimationFrame(tick);
+      };
+      tick();
+    };
+
+    const counterObserver = new IntersectionObserver((entries, obs) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          animateCounter(entry.target);
+          obs.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.5 });
+    counters.forEach(counter => counterObserver.observe(counter));
+
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const tabPanels = document.querySelectorAll('.tab-panel');
+    tabButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        tabButtons.forEach(b => b.classList.remove('active'));
+        tabPanels.forEach(panel => panel.classList.add('hidden'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab).classList.remove('hidden');
+      });
+    });
+
+    const sections = Array.from(document.querySelectorAll('.section-anchor'));
+    const sidebarLinks = Array.from(document.querySelectorAll('#sidebarNav a'));
+    const sectionObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          sidebarLinks.forEach(link => link.classList.toggle('active', link.getAttribute('href') === '#' + entry.target.id));
+        }
+      });
+    }, { rootMargin: '-25% 0px -60% 0px', threshold: 0.1 });
+    sections.forEach(section => sectionObserver.observe(section));
+  </script>
+</body>
+</html>

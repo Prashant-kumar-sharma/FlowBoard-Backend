@@ -1,0 +1,300 @@
+@startuml
+title Architecture Diagram - FlowBoard System
+
+node "Frontend Layer" {
+  [Angular Application] <<frontend>>
+}
+
+node "Infrastructure & Routing" {
+  [API Gateway] <<gateway>>
+  [Eureka Server] <<registry>>
+  [Admin Server] <<monitor>>
+}
+
+node "Microservices Layer" {
+  [Auth Service] <<service>>
+  [Workspace Service] <<service>>
+  [Payment Service] <<service>>
+  [Board Service] <<service>>
+  [List Service] <<service>>
+  [Card Service] <<service>>
+  [Comment Service] <<service>>
+  [Label Service] <<service>>
+  [Notification Service] <<service>>
+}
+
+database "Data Storage & Caching" {
+  [MySQL 8.0] <<database>>
+  [Redis 7] <<cache>>
+}
+
+queue "Message Broker" {
+  [Apache Kafka] <<messaging>>
+  [Zookeeper] <<coordinator>>
+}
+
+[Angular Application] --> [API Gateway] : HTTP/REST
+[API Gateway] ..> [Eureka Server] : Resolve Routes
+[API Gateway] --> [Auth Service] : Route
+[API Gateway] --> [Workspace Service] : Route
+[API Gateway] --> [Board Service] : Route
+[API Gateway] --> [Card Service] : Route
+
+[Auth Service] ..> [Eureka Server] : Register
+[Workspace Service] ..> [Eureka Server] : Register
+[Payment Service] ..> [Eureka Server] : Register
+[Card Service] ..> [Eureka Server] : Register
+[Notification Service] ..> [Eureka Server] : Register
+
+[Workspace Service] --> [Payment Service] : Sync HTTP/REST
+[Notification Service] --> [Auth Service] : Sync HTTP/REST
+[Notification Service] --> [Card Service] : Sync HTTP/REST
+
+[Auth Service] --> [MySQL 8.0] : Read/Write
+[Workspace Service] --> [MySQL 8.0] : Read/Write
+[Payment Service] --> [MySQL 8.0] : Read/Write
+[Card Service] --> [MySQL 8.0] : Read/Write
+
+[Auth Service] --> [Redis 7] : Session Cache
+[Workspace Service] --> [Redis 7] : Data Cache
+
+[Workspace Service] --> [Apache Kafka] : Publish Event
+[Card Service] --> [Apache Kafka] : Publish Event
+[Apache Kafka] --> [Notification Service] : Consume Event
+[Apache Kafka] - [Zookeeper]
+
+@enduml
+
+@startuml
+title Sequence Diagram: Workspace Creation & Payment Verification
+
+actor User
+participant "Angular App" as Frontend <<frontend>>
+participant "API Gateway" as Gateway <<gateway>>
+participant "Workspace Service" as WorkspaceSvc <<service>>
+participant "Payment Service" as PaymentSvc <<service>>
+database "MySQL" as DB <<database>>
+queue "Kafka Broker" as Kafka <<messaging>>
+participant "Notification Service" as NotifSvc <<service>>
+
+User -> Frontend : Submit "Create Workspace"
+Frontend -> Gateway : POST /api/v1/workspaces (Bearer Token)
+Gateway -> WorkspaceSvc : Route Request
+
+activate WorkspaceSvc
+WorkspaceSvc -> PaymentSvc : GET /api/v1/internal/payments/status
+activate PaymentSvc
+PaymentSvc -> DB : Check subscription status
+DB --> PaymentSvc : Status = Active
+PaymentSvc --> WorkspaceSvc : 200 OK (Payment Valid)
+deactivate PaymentSvc
+
+WorkspaceSvc -> DB : Save new Workspace entity
+DB --> WorkspaceSvc : Workspace Created (ID)
+
+WorkspaceSvc -> Kafka : Publish WorkspaceCreatedEvent
+WorkspaceSvc --> Gateway : 201 Created (Workspace Data)
+deactivate WorkspaceSvc
+
+Gateway --> Frontend : 201 Created
+Frontend --> User : Display Dashboard
+
+Kafka -> NotifSvc : Consume WorkspaceCreatedEvent
+activate NotifSvc
+NotifSvc -> DB : Save Notification Log
+NotifSvc -> User : Dispatch Email/Push Alert
+deactivate NotifSvc
+@enduml
+
+@startuml
+title Class Diagram: Workspace Service (Core Module)
+
+package "com.flowboard.workspace" {
+    
+    package "controller" {
+        class WorkspaceController {
+            - workspaceService: WorkspaceService
+            + createWorkspace(dto: WorkspaceRequestDTO): ResponseEntity<WorkspaceResponseDTO>
+            + getWorkspace(id: Long): ResponseEntity<WorkspaceResponseDTO>
+        }
+    }
+
+    package "service" {
+        interface WorkspaceService {
+            + createWorkspace(dto: WorkspaceRequestDTO): WorkspaceResponseDTO
+            + getWorkspace(id: Long): WorkspaceResponseDTO
+        }
+
+        class WorkspaceServiceImpl {
+            - workspaceRepository: WorkspaceRepository
+            - paymentClient: PaymentServiceClient
+            - kafkaProducer: KafkaEventProducer
+            + createWorkspace(dto: WorkspaceRequestDTO): WorkspaceResponseDTO
+        }
+    }
+
+    package "repository" {
+        interface WorkspaceRepository <<JpaRepository>> {
+            + findByOwnerId(ownerId: Long): List<Workspace>
+        }
+    }
+
+    package "entity" {
+        class Workspace {
+            - id: Long
+            - name: String
+            - description: String
+            - ownerId: Long
+            - visibility: Visibility
+            - logoUrl: String
+            - createdAt: LocalDateTime
+            - updatedAt: LocalDateTime
+            + getId(): Long
+            + getName(): String
+        }
+        
+        class WorkspaceMember {
+            - id: Long
+            - userId: Long
+            - role: String
+            - joinedAt: LocalDateTime
+        }
+        
+        enum Visibility {
+            PUBLIC
+            PRIVATE
+        }
+    }
+
+    package "exception" {
+        class PaymentRequiredException {
+            + PaymentRequiredException(message: String)
+        }
+    }
+}
+
+WorkspaceController --> WorkspaceService : uses
+WorkspaceServiceImpl ..|> WorkspaceService : implements
+WorkspaceServiceImpl --> WorkspaceRepository : depends on
+WorkspaceServiceImpl --> PaymentRequiredException : throws
+WorkspaceRepository --> Workspace : manages
+Workspace "1" *-- "0..*" WorkspaceMember : contains
+Workspace --> Visibility : has
+
+@enduml
+
+@startuml
+title ER Diagram: FlowBoard Core Entities
+
+entity "workspaces" as workspaces <<table>> {
+  *id : BIGINT <<PK>>
+  --
+  name : VARCHAR(255)
+  description : VARCHAR(255)
+  owner_id : BIGINT
+  visibility : VARCHAR(50)
+  logo_url : VARCHAR(255)
+  created_at : DATETIME
+  updated_at : DATETIME
+}
+
+entity "workspace_members" as workspace_members <<table>> {
+  *id : BIGINT <<PK>>
+  --
+  workspace_id : BIGINT <<FK>>
+  user_id : BIGINT
+  role : VARCHAR(50)
+  joined_at : DATETIME
+}
+
+entity "boards" as boards <<table>> {
+  *id : BIGINT <<PK>>
+  --
+  workspace_id : BIGINT <<FK>>
+  name : VARCHAR(255)
+  created_at : DATETIME
+}
+
+entity "lists" as lists <<table>> {
+  *id : BIGINT <<PK>>
+  --
+  board_id : BIGINT <<FK>>
+  name : VARCHAR(255)
+  position : INT
+}
+
+entity "cards" as cards <<table>> {
+  *id : BIGINT <<PK>>
+  --
+  list_id : BIGINT <<FK>>
+  title : VARCHAR(255)
+  description : TEXT
+  position : INT
+  created_at : DATETIME
+}
+
+workspaces "1" -- "0..*" workspace_members : has members
+workspaces "1" -- "0..*" boards : contains
+boards "1" -- "0..*" lists : contains
+lists "1" -- "0..*" cards : contains
+
+@enduml
+
+@startuml
+title Component Diagram: Workspace & Payment Interaction
+
+package "Client Layer" {
+  [Angular SPA] <<frontend>>
+}
+
+package "Routing & Discovery" {
+  [API Gateway] <<gateway>>
+  [Eureka Registry] <<registry>>
+}
+
+package "Workspace Bounded Context" {
+  component "Workspace Service" <<service>> {
+    [Workspace Controller]
+    [Workspace Manager]
+    [Payment HTTP Client]
+    [Kafka Publisher]
+  }
+  
+  database "Workspace DB" <<database>> {
+    [workspaces table]
+    [workspace_members table]
+  }
+}
+
+package "Payment Bounded Context" {
+  component "Payment Service" <<service>> {
+    [Payment Controller]
+    [Subscription Manager]
+  }
+  
+  database "Payment DB" <<database>> {
+    [subscriptions table]
+  }
+}
+
+queue "Kafka Event Bus" <<messaging>> {
+  [workspace-events-topic]
+}
+
+[Angular SPA] ..> [API Gateway] : /api/v1/workspaces
+[API Gateway] ..> [Workspace Controller] : Route Request
+
+[Workspace Manager] ..> [workspaces table] : JDBC/JPA
+[Workspace Manager] ..> [Payment HTTP Client] : Verify Subscription
+
+[Payment HTTP Client] ..> [Payment Controller] : HTTP GET /status
+[Payment Controller] ..> [Subscription Manager] : Check Status
+[Subscription Manager] ..> [subscriptions table] : JDBC/JPA
+
+[Kafka Publisher] ..> [workspace-events-topic] : Publish "WorkspaceCreated"
+
+[API Gateway] ..> [Eureka Registry] : Resolve IPs
+[Workspace Service] ..> [Eureka Registry] : Register
+[Payment Service] ..> [Eureka Registry] : Register
+
+@enduml

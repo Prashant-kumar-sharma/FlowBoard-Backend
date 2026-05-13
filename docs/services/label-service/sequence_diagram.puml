@@ -1,0 +1,8 @@
+@startuml
+title Sequence Diagram: Label Service (Create)
+User -> LabelController: POST /labels
+LabelController -> LabelServiceImpl: createLabel()
+LabelServiceImpl -> LabelRepository: save()
+LabelRepository --> LabelServiceImpl: Label
+LabelServiceImpl --> LabelController: LabelDTO
+@enduml

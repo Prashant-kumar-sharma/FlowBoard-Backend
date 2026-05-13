@@ -1,0 +1,12 @@
+@startuml
+title Component Diagram: Payment Service
+component "Payment Service" {
+  [PaymentController]
+  [PaymentServiceImpl]
+}
+database "Payment DB" {
+  [subscriptions table]
+}
+[PaymentController] --> [PaymentServiceImpl]
+[PaymentServiceImpl] --> [subscriptions table]
+@enduml

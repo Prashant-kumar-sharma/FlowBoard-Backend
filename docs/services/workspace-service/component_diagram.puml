@@ -1,0 +1,14 @@
+@startuml
+title Component Diagram: Workspace Service
+component "Workspace Service" {
+  [WorkspaceController]
+  [WorkspaceServiceImpl]
+  [PaymentClient]
+}
+database "Workspace DB" {
+  [workspaces table]
+}
+[WorkspaceController] --> [WorkspaceServiceImpl]
+[WorkspaceServiceImpl] --> [workspaces table]
+[WorkspaceServiceImpl] --> [PaymentClient]
+@enduml

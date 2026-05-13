@@ -1,0 +1,11 @@
+@startuml
+title ER Diagram: Comment Service
+entity "comments" as commentEntity <<table>> {
+  *id : BIGINT <<PK>>
+  --
+  card_id : BIGINT
+  user_id : BIGINT
+  content : TEXT
+  created_at : DATETIME
+}
+@enduml

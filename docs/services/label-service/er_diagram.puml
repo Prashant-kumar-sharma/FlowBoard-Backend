@@ -1,0 +1,17 @@
+@startuml
+title ER Diagram: Label Service
+entity "labels" as lbl <<table>> {
+  *id : BIGINT <<PK>>
+  --
+  board_id : BIGINT
+  name : VARCHAR(255)
+  color : VARCHAR(50)
+}
+entity "card_labels" as cl <<table>> {
+  *card_id : BIGINT <<FK>>
+  *label_id : BIGINT <<FK>>
+  --
+}
+
+lbl "1" -- "0..*" cl : contains
+@enduml

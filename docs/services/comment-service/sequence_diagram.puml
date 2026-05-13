@@ -1,0 +1,9 @@
+@startuml
+title Sequence Diagram: Comment Service (Add)
+User -> CommentController: POST /comments
+CommentController -> CommentServiceImpl: addComment()
+CommentServiceImpl -> CommentRepository: save()
+CommentRepository --> CommentServiceImpl: Comment
+CommentServiceImpl -> Kafka: emit CommentAdded
+CommentServiceImpl --> CommentController: CommentDTO
+@enduml

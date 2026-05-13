@@ -1,0 +1,185 @@
+@startuml
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+' ══════════════ ENTITIES ══════════════
+
+class Comment <<Entity>> {
+    -Long id
+    -Long cardId
+    -Long authorId
+    -String content
+    -Long parentCommentId
+    -Boolean isDeleted
+    -LocalDateTime createdAt
+    -LocalDateTime updatedAt
+}
+
+class Attachment <<Entity>> {
+    -Long id
+    -Long cardId
+    -Long uploaderId
+    -String fileName
+    -String fileUrl
+    -String fileType
+    -Long sizeKb
+    -LocalDateTime uploadedAt
+}
+
+Comment "1" -- "*" Comment : parentCommentId\n(self-referencing replies)
+
+' ══════════════ REQUEST DTOs ══════════════
+
+class CreateCommentRequest <<DTO>> {
+    -Long cardId
+    -String content
+    -Long parentCommentId
+}
+
+class CreateAttachmentRequest <<DTO>> {
+    -Long cardId
+    -String fileName
+    -String fileUrl
+    -String fileType
+    -Long sizeKb
+}
+
+' ══════════════ RESPONSE DTOs ══════════════
+
+class CommentResponse <<DTO>> {
+    -Long id
+    -Long cardId
+    -Long authorId
+    -String content
+    -Long parentCommentId
+    -Boolean isDeleted
+    -LocalDateTime createdAt
+    -LocalDateTime updatedAt
+}
+
+class AttachmentResponse <<DTO>> {
+    -Long id
+    -Long cardId
+    -Long uploaderId
+    -String fileName
+    -String fileUrl
+    -String fileType
+    -Long sizeKb
+    -LocalDateTime uploadedAt
+}
+
+' ── Response DTO mappings ──
+CommentResponse ..> Comment : maps from
+AttachmentResponse ..> Attachment : maps from
+CreateCommentRequest ..> Comment : creates
+CreateAttachmentRequest ..> Attachment : creates
+
+' ══════════════ REPOSITORIES ══════════════
+
+interface CommentRepository {
+    +findByCardIdOrderByCreatedAtAsc(Long) : List<Comment>
+    +findByParentCommentId(Long) : List<Comment>
+    +countByCardId(Long) : long
+}
+
+interface AttachmentRepository {
+    +findByCardId(Long) : List<Attachment>
+}
+
+CommentRepository ..> Comment : manages
+AttachmentRepository ..> Attachment : manages
+
+' ══════════════ SERVICE LAYER ══════════════
+
+interface CommentService {
+    +addComment(Long, Long, String, Long) : Comment
+    +getById(Long) : Comment
+    +getByCard(Long) : List<Comment>
+    +getReplies(Long) : List<Comment>
+    +update(Long, String, Long) : Comment
+    +delete(Long, Long) : void
+    +addAttachment(Long, Long, String, String, String, Long) : Attachment
+    +getAttachments(Long) : List<Attachment>
+    +deleteAttachment(Long, Long) : void
+    +getCommentCount(Long) : long
+}
+
+' ── DTO ←→ Service dependencies ──
+CommentService ..> Comment : <<returns>>
+CommentService ..> Attachment : <<returns>>
+
+class CommentServiceImpl <<Service>> {
+    -CommentRepository commentRepository
+    -AttachmentRepository attachmentRepository
+    -CommentEventProducer commentEventProducer
+    -SimpMessagingTemplate messagingTemplate
+}
+
+CommentServiceImpl ..|> CommentService
+CommentServiceImpl --> CommentRepository
+CommentServiceImpl --> AttachmentRepository
+CommentServiceImpl --> CommentEventProducer
+
+class FileStorageService <<Service>> {
+    +store(MultipartFile) : String
+}
+
+' ══════════════ KAFKA ══════════════
+
+class CommentEventProducer <<Component>> {
+    -KafkaTemplate<String, String> kafkaTemplate
+    +sendCommentAdded(Comment) : void
+}
+
+CommentEventProducer ..> Comment : publishes events
+
+' ══════════════ CONFIG ══════════════
+
+class WebSocketConfig <<Configuration>>
+
+' ══════════════ CONTROLLER ══════════════
+
+class CommentController <<RestController>> {
+    -CommentService commentService
+    -FileStorageService fileStorageService
+    +getByCard(Long) : ResponseEntity<List<CommentResponse>>
+    +getReplies(Long) : ResponseEntity<List<CommentResponse>>
+    +addComment(CreateCommentRequest, Long) : ResponseEntity<CommentResponse>
+    +update(Long, Map, Long) : ResponseEntity<CommentResponse>
+    +delete(Long, Long) : ResponseEntity<Void>
+    +getAttachments(Long) : ResponseEntity<List<AttachmentResponse>>
+    +addAttachment(CreateAttachmentRequest, Long) : ResponseEntity<AttachmentResponse>
+    +uploadFile(MultipartFile, Long) : ResponseEntity<Map>
+    +deleteAttachment(Long, Long) : ResponseEntity<Void>
+    +getCount(Long) : ResponseEntity<Map>
+}
+
+CommentController --> CommentService : delegates
+CommentController --> FileStorageService : uses
+
+' ── Controller ←→ DTO dependencies ──
+CommentController ..> CreateCommentRequest : <<receives>>
+CommentController ..> CreateAttachmentRequest : <<receives>>
+CommentController ..> CommentResponse : <<responds>>
+CommentController ..> AttachmentResponse : <<responds>>
+
+' ══════════════ EXCEPTIONS ══════════════
+
+class ResourceNotFoundException <<Exception>>
+class AccessDeniedException <<Exception>>
+
+ResourceNotFoundException --|> RuntimeException
+AccessDeniedException --|> RuntimeException
+
+class GlobalExceptionHandler <<ControllerAdvice>> {
+    +handleNotFound(ResourceNotFoundException) : ResponseEntity
+    +handleForbidden(AccessDeniedException) : ResponseEntity
+    +handleGeneral(Exception) : ResponseEntity
+}
+
+GlobalExceptionHandler ..> ResourceNotFoundException : <<catches>>
+GlobalExceptionHandler ..> AccessDeniedException : <<catches>>
+
+@enduml
+

@@ -1,0 +1,12 @@
+@startuml
+title Component Diagram: List Service
+component "List Service" {
+  [ListController]
+  [ListServiceImpl]
+}
+database "List DB" {
+  [lists table]
+}
+[ListController] --> [ListServiceImpl]
+[ListServiceImpl] --> [lists table]
+@enduml

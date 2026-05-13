@@ -1,80 +1,97 @@
 package com.flowboard.api_gateway.service;
 
-import lombok.extern.slf4j.Slf4j;
-import java.util.HashMap;
-import java.util.Map;
-
-import org.springframework.cloud.client.ServiceInstance;
-import org.springframework.cloud.client.discovery.DiscoveryClient;
-import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
+import com.flowboard.api_gateway.client.AuthServiceDocsClient;
+import com.flowboard.api_gateway.client.BoardServiceDocsClient;
+import com.flowboard.api_gateway.client.CardServiceDocsClient;
+import com.flowboard.api_gateway.client.CommentServiceDocsClient;
+import com.flowboard.api_gateway.client.LabelServiceDocsClient;
+import com.flowboard.api_gateway.client.ListServiceDocsClient;
+import com.flowboard.api_gateway.client.NotificationServiceDocsClient;
+import com.flowboard.api_gateway.client.WorkspaceServiceDocsClient;
+import feign.FeignException;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Supplier;
 
 @Slf4j
 @Service
 public class SwaggerAggregatorService {
 
-    private final DiscoveryClient discoveryClient;
-    private final WebClient webClient;
-
+    private final AuthServiceDocsClient authServiceDocsClient;
+    private final WorkspaceServiceDocsClient workspaceServiceDocsClient;
+    private final BoardServiceDocsClient boardServiceDocsClient;
+    private final ListServiceDocsClient listServiceDocsClient;
+    private final CardServiceDocsClient cardServiceDocsClient;
+    private final CommentServiceDocsClient commentServiceDocsClient;
+    private final LabelServiceDocsClient labelServiceDocsClient;
+    private final NotificationServiceDocsClient notificationServiceDocsClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public SwaggerAggregatorService(DiscoveryClient discoveryClient, WebClient webClient) {
-        this.discoveryClient = discoveryClient;
-        this.webClient = webClient;
+    public SwaggerAggregatorService(AuthServiceDocsClient authServiceDocsClient,
+                                    WorkspaceServiceDocsClient workspaceServiceDocsClient,
+                                    BoardServiceDocsClient boardServiceDocsClient,
+                                    ListServiceDocsClient listServiceDocsClient,
+                                    CardServiceDocsClient cardServiceDocsClient,
+                                    CommentServiceDocsClient commentServiceDocsClient,
+                                    LabelServiceDocsClient labelServiceDocsClient,
+                                    NotificationServiceDocsClient notificationServiceDocsClient) {
+        this.authServiceDocsClient = authServiceDocsClient;
+        this.workspaceServiceDocsClient = workspaceServiceDocsClient;
+        this.boardServiceDocsClient = boardServiceDocsClient;
+        this.listServiceDocsClient = listServiceDocsClient;
+        this.cardServiceDocsClient = cardServiceDocsClient;
+        this.commentServiceDocsClient = commentServiceDocsClient;
+        this.labelServiceDocsClient = labelServiceDocsClient;
+        this.notificationServiceDocsClient = notificationServiceDocsClient;
     }
 
     public Mono<Map<String, Object>> getAggregatedSwagger() {
-        Map<String, Object> aggregatedSwagger = new HashMap<>();
-        aggregatedSwagger.put("openapi", "3.0.1");
-        aggregatedSwagger.put("info", Map.of(
-            "title", "FlowBoard API Gateway",
-            "description", "Aggregated API documentation for all microservices",
-            "version", "1.0.0"
-        ));
-        aggregatedSwagger.put("servers", new Object[]{Map.of("url", "http://localhost:8080")});
-        aggregatedSwagger.put("paths", new HashMap<>());
-        aggregatedSwagger.put("components", Map.of("schemas", new HashMap<>()));
+        return Mono.fromCallable(() -> {
+                    Map<String, Object> aggregatedSwagger = new HashMap<>();
+                    aggregatedSwagger.put("openapi", "3.0.1");
+                    aggregatedSwagger.put("info", Map.of(
+                            "title", "FlowBoard API Gateway",
+                            "description", "Aggregated API documentation for all microservices",
+                            "version", "1.0.0"
+                    ));
+                    aggregatedSwagger.put("servers", new Object[]{Map.of("url", "http://localhost:8080")});
+                    aggregatedSwagger.put("paths", new HashMap<>());
+                    aggregatedSwagger.put("components", Map.of("schemas", new HashMap<>()));
 
-        return fetchServiceSwagger("auth-service")
-            .then(fetchServiceSwagger("workspace-service"))
-            .then(fetchServiceSwagger("board-service"))
-            .then(fetchServiceSwagger("list-service"))
-            .then(fetchServiceSwagger("card-service"))
-            .then(fetchServiceSwagger("comment-service"))
-            .then(fetchServiceSwagger("label-service"))
-            .then(fetchServiceSwagger("notification-service"))
-            .then(Mono.just(aggregatedSwagger));
+                    fetchServiceSwagger("auth-service", authServiceDocsClient::getApiDocs);
+                    fetchServiceSwagger("workspace-service", workspaceServiceDocsClient::getApiDocs);
+                    fetchServiceSwagger("board-service", boardServiceDocsClient::getApiDocs);
+                    fetchServiceSwagger("list-service", listServiceDocsClient::getApiDocs);
+                    fetchServiceSwagger("card-service", cardServiceDocsClient::getApiDocs);
+                    fetchServiceSwagger("comment-service", commentServiceDocsClient::getApiDocs);
+                    fetchServiceSwagger("label-service", labelServiceDocsClient::getApiDocs);
+                    fetchServiceSwagger("notification-service", notificationServiceDocsClient::getApiDocs);
+
+                    return aggregatedSwagger;
+                })
+                .subscribeOn(Schedulers.boundedElastic());
     }
 
-    private Mono<Void> fetchServiceSwagger(String serviceName) {
-        return Mono.fromCallable(() -> discoveryClient.getInstances(serviceName))
-            .filter(instances -> !instances.isEmpty())
-            .flatMap(instances -> {
-                ServiceInstance instance = instances.get(0);
-                String baseUrl = instance.getUri().toString();
-                String swaggerUrl = baseUrl + "/v3/api-docs";
-                
-                return webClient.get()
-                    .uri(swaggerUrl)
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .doOnNext(response -> {
-                        try {
-                            JsonNode swaggerDoc = objectMapper.readTree(response);
-                            // Here you would merge the swagger documentation
-                            // For now, we'll just log it
-                            log.info("Fetched Swagger for {}: {}", serviceName, swaggerDoc.get("info").get("title").asText());
-                        } catch (Exception e) {
-                            log.error("Error parsing Swagger for {}: {}", serviceName, e.getMessage(), e);
-                        }
-                    })
-                    .then();
-            })
-            .then();
+    private void fetchServiceSwagger(String serviceName, Supplier<String> responseSupplier) {
+        try {
+            String response = responseSupplier.get();
+            JsonNode swaggerDoc = objectMapper.readTree(response);
+            JsonNode infoNode = swaggerDoc.get("info");
+            String title = infoNode != null && infoNode.get("title") != null
+                    ? infoNode.get("title").asText()
+                    : serviceName;
+            log.info("Fetched Swagger for {}: {}", serviceName, title);
+        } catch (FeignException ex) {
+            log.warn("Unable to fetch Swagger for {}: {}", serviceName, ex.getMessage());
+        } catch (Exception ex) {
+            log.error("Error parsing Swagger for {}: {}", serviceName, ex.getMessage(), ex);
+        }
     }
 }

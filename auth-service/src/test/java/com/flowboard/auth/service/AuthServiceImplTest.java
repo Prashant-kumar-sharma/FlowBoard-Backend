@@ -3,6 +3,7 @@ package com.flowboard.auth.service;
 import com.flowboard.auth.dto.request.LoginRequest;
 import com.flowboard.auth.dto.request.RegisterRequest;
 import com.flowboard.auth.dto.response.AuthResponse;
+import com.flowboard.auth.dto.response.PaymentEntitlementResponse;
 import com.flowboard.auth.dto.response.UserResponse;
 import com.flowboard.auth.entity.User;
 import com.flowboard.auth.exception.DuplicateResourceException;
@@ -44,6 +45,7 @@ class AuthServiceImplTest {
     @Mock AuthenticationManager authenticationManager;
     @Mock AuthEventProducer authEventProducer;
     @Mock PaymentCleanupClient paymentCleanupClient;
+    @Mock PaymentEntitlementClient paymentEntitlementClient;
     @InjectMocks AuthServiceImpl authService;
 
     private User memberUser;
@@ -65,6 +67,14 @@ class AuthServiceImplTest {
                 .provider(User.AuthProvider.LOCAL).isActive(true).build();
 
         lenient().when(jwtUtil.generateToken(anyMap(), any())).thenReturn("jwt.token");
+        lenient().when(paymentEntitlementClient.getEntitlement(anyLong())).thenAnswer(invocation -> {
+            Long userId = invocation.getArgument(0);
+            PaymentEntitlementResponse response = new PaymentEntitlementResponse();
+            response.setUserId(userId);
+            response.setPremium(false);
+            response.setPlanCode("FREE");
+            return response;
+        });
     }
 
     // ── GUEST: Registration ───────────────────────────────────────────────

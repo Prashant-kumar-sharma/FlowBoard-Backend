@@ -1,0 +1,12 @@
+@startuml
+title Component Diagram: Card Service
+component "Card Service" {
+  [CardController]
+  [CardServiceImpl]
+}
+database "Card DB" {
+  [cards table]
+}
+[CardController] --> [CardServiceImpl]
+[CardServiceImpl] --> [cards table]
+@enduml

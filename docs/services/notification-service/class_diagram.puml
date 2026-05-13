@@ -1,0 +1,169 @@
+@startuml
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+' ══════════════ ENTITY ══════════════
+
+class Notification <<Entity>> {
+    -Long id
+    -Long recipientId
+    -Long actorId
+    -NotificationType type
+    -String title
+    -String message
+    -Long relatedId
+    -String relatedType
+    -String deepLinkUrl
+    -Boolean isRead
+    -LocalDateTime createdAt
+}
+
+enum NotificationType {
+    ASSIGNMENT
+    MENTION
+    DUE_DATE
+    COMMENT
+    MOVE
+    BROADCAST
+}
+
+Notification --> NotificationType : type
+
+' ══════════════ REQUEST DTOs ══════════════
+
+class BroadcastRequest <<DTO>> {
+    -List<Long> recipientIds
+    -String title
+    -String message
+}
+
+class NotificationRequest <<Record>> {
+    +Long recipientId
+    +Long actorId
+    +NotificationType type
+    +String title
+    +String message
+    +Long relatedId
+    +String relatedType
+    +String deepLinkUrl
+}
+
+NotificationRequest ..> NotificationType : references
+
+' ══════════════ RESPONSE DTOs ══════════════
+
+class NotificationResponse <<DTO>> {
+    -Long id
+    -Long recipientId
+    -Long actorId
+    -String type
+    -String title
+    -String message
+    -Long relatedId
+    -String relatedType
+    -String deepLinkUrl
+    -Boolean isRead
+    -LocalDateTime createdAt
+}
+
+' ── Response DTO mappings ──
+NotificationResponse ..> Notification : maps from
+BroadcastRequest ..> NotificationType : creates BROADCAST
+
+' ══════════════ REPOSITORY ══════════════
+
+interface NotificationRepository {
+    +findByRecipientIdOrderByCreatedAtDesc(Long) : List<Notification>
+    +countByRecipientIdAndIsReadFalse(Long) : long
+    +deleteByRecipientIdAndIsReadTrue(Long) : void
+}
+
+NotificationRepository ..> Notification : manages
+
+' ══════════════ SERVICE LAYER ══════════════
+
+interface NotificationService {
+    +send(NotificationRequest) : Notification
+    +sendBulk(List<Long>, NotificationType, String, String) : void
+    +markAsRead(Long, Long) : void
+    +markAllRead(Long) : void
+    +deleteRead(Long) : void
+    +getByRecipient(Long) : List<Notification>
+    +getUnreadCount(Long) : long
+    +delete(Long, Long) : void
+}
+
+' ── DTO ←→ Service dependencies ──
+NotificationService ..> NotificationRequest : <<accepts>>
+NotificationService ..> Notification : <<returns>>
+NotificationService ..> NotificationType : <<uses>>
+
+class NotificationServiceImpl <<Service>> {
+    -NotificationRepository notificationRepository
+}
+
+NotificationServiceImpl ..|> NotificationService
+NotificationServiceImpl --> NotificationRepository
+
+' ══════════════ EMAIL ══════════════
+
+class EmailService <<Service>> {
+    -JavaMailSender mailSender
+    -String fromAddress
+    +sendEmail(String, String, String) : void
+}
+
+' ══════════════ KAFKA ══════════════
+
+class NotificationKafkaConsumer <<Component>> {
+    -NotificationService notificationService
+    -EmailService emailService
+    +handleCardAssigned(String) : void
+    +handleCardMoved(String) : void
+    +handleCommentAdded(String) : void
+    +handleAccountStatusChanged(String) : void
+}
+
+NotificationKafkaConsumer --> NotificationService : creates notifications
+NotificationKafkaConsumer --> EmailService : sends emails
+NotificationKafkaConsumer ..> NotificationRequest : <<builds>>
+
+class KafkaConsumerConfig <<Configuration>>
+class KafkaProducerConfig <<Configuration>>
+class KafkaTopicConfig <<Configuration>>
+
+' ══════════════ CONTROLLER ══════════════
+
+class NotificationController <<RestController>> {
+    -NotificationService notificationService
+    +getAll(Long) : ResponseEntity<List<Notification>>
+    +getUnreadCount(Long) : ResponseEntity<Map>
+    +markRead(Long, Long) : ResponseEntity<Void>
+    +markAllRead(Long) : ResponseEntity<Void>
+    +deleteRead(Long) : ResponseEntity<Void>
+    +delete(Long, Long) : ResponseEntity<Void>
+    +broadcast(BroadcastRequest, String) : ResponseEntity<Void>
+}
+
+NotificationController --> NotificationService : delegates
+
+' ── Controller ←→ DTO dependencies ──
+NotificationController ..> BroadcastRequest : <<receives>>
+NotificationController ..> Notification : <<responds>>
+
+' ══════════════ EXCEPTIONS ══════════════
+
+class ResourceNotFoundException <<Exception>>
+
+ResourceNotFoundException --|> RuntimeException
+
+class GlobalExceptionHandler <<ControllerAdvice>> {
+    +handleNotFound(ResourceNotFoundException) : ResponseEntity
+    +handleGeneral(Exception) : ResponseEntity
+}
+
+GlobalExceptionHandler ..> ResourceNotFoundException : <<catches>>
+
+@enduml
+

@@ -1,0 +1,18 @@
+@startuml
+title Component Diagram: Notification Service
+component "Notification Service" {
+  [NotificationListener]
+  [NotificationServiceImpl]
+  [AuthClient]
+}
+database "Notification DB" {
+  [notifications table]
+}
+queue "Kafka" {
+  [Events]
+}
+[Events] --> [NotificationListener]
+[NotificationListener] --> [NotificationServiceImpl]
+[NotificationServiceImpl] --> [notifications table]
+[NotificationServiceImpl] --> [AuthClient]
+@enduml

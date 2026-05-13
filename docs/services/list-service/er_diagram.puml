@@ -1,0 +1,10 @@
+@startuml
+title ER Diagram: List Service
+entity "lists" as lst <<table>> {
+  *id : BIGINT <<PK>>
+  --
+  board_id : BIGINT
+  name : VARCHAR(255)
+  position : INT
+}
+@enduml

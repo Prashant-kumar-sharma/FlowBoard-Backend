@@ -1,0 +1,12 @@
+@startuml
+title Component Diagram: Board Service
+component "Board Service" {
+  [BoardController]
+  [BoardServiceImpl]
+}
+database "Board DB" {
+  [boards table]
+}
+[BoardController] --> [BoardServiceImpl]
+[BoardServiceImpl] --> [boards table]
+@enduml

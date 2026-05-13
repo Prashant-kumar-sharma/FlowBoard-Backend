@@ -1,0 +1,9 @@
+```mermaid
+sequenceDiagram
+    User->>CardController: POST /cards
+    CardController->>CardServiceImpl: createCard()
+    CardServiceImpl->>CardRepository: save()
+    CardRepository-->>CardServiceImpl: Card
+    CardServiceImpl->>Kafka: emit CardCreated
+    CardServiceImpl-->>CardController: CardDTO
+```
