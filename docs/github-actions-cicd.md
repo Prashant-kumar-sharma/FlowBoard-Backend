@@ -1,15 +1,10 @@
 # GitHub Actions CI/CD
 
-This repository now includes two GitHub Actions workflows:
+This repository now uses a single GitHub Actions workflow:
 
-- `backend-ci.yml`
-  Runs on pushes to `main`, `dev`, and `feature/**`, plus pull requests to `main` and `dev`.
-  It checks out the backend monorepo, installs Java 17, and runs `mvn clean verify`.
-
-- `backend-cd.yml`
-  Runs on pushes to `main` and on manual dispatch.
-  It builds and pushes Docker images for every backend service to Docker Hub.
-  If the deployment secrets are configured, it also deploys the updated stack on your EC2 machine with `docker compose pull` and `docker compose up -d --no-build`.
+- `deploy.yml`
+  Runs tests on pushes to `main`, `dev`, and `feature/**`, plus pull requests to `main` and `dev`.
+  On `main`, the same workflow then builds and pushes Docker images for every backend service, and deploys to EC2 only after the test and image jobs succeed.
 
 ## Required GitHub Secrets
 
@@ -25,7 +20,7 @@ Add these repository secrets in `FlowBoard-Backend`:
 Notes:
 
 - `SERVER_APP_PATH` should be the absolute path on the server where the backend repo containing `docker-compose.yml` is checked out.
-- The deploy job is skipped automatically if the EC2 secrets are not present.
+- Because CI and CD are in the same workflow, deployment cannot succeed when the test job fails.
 - The workflow expects your Docker Hub namespace to be `prashar85211`, matching the image names already used in `docker-compose.yml`.
 
 ## Suggested Branch Flow

@@ -1,9 +1,15 @@
-name: Backend CD
+name: Backend Deploy
 
 on:
   push:
     branches:
       - main
+      - dev
+      - feature/**
+  pull_request:
+    branches:
+      - main
+      - dev
   workflow_dispatch:
 
 permissions:
@@ -14,8 +20,35 @@ env:
   IMAGE_NAMESPACE: prashar85211
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GOOGLE_CLIENT_ID: ci-google-client-id
+      GOOGLE_CLIENT_SECRET: ci-google-client-secret
+      MAIL_USERNAME: ci-mail-user@example.com
+      MAIL_PASSWORD: ci-mail-password
+      MAIL_FROM: ci-mail-from@example.com
+      KAFKA_BOOTSTRAP_SERVERS: 127.0.0.1:29092
+      JWT_SECRET: 12345678901234567890123456789012
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Run Maven verify
+        run: mvn -B clean verify
+
   build-and-push:
     runs-on: ubuntu-latest
+    needs: test
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     strategy:
       fail-fast: false
       matrix:
@@ -67,14 +100,10 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build-and-push
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
 
     steps:
-      - name: Skip deploy outside main
-        if: ${{ github.ref != 'refs/heads/main' }}
-        run: echo "Skipping deploy because this is not the main branch."
-
       - name: Deploy on EC2
-        if: ${{ github.ref == 'refs/heads/main' }}
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.EC2_HOST }}
