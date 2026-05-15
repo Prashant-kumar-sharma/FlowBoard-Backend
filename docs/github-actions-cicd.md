@@ -21,6 +21,7 @@ Notes:
 
 - `SERVER_APP_PATH` should be the absolute path on the server where the backend repo containing `docker-compose.yml` is checked out.
 - Because CI and CD are in the same workflow, deployment cannot succeed when the test job fails.
+- On non-`main` branches, the release jobs finish as no-op successes instead of showing as skipped.
 - The workflow expects your Docker Hub namespace to be `prashar85211`, matching the image names already used in `docker-compose.yml`.
 
 ## Suggested Branch Flow

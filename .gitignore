@@ -157,6 +157,7 @@ typings/
 .env.development.local
 .env.test.local
 .env.production.local
+deploy/ec2/*.local
 
 # parcel-bundler cache
 .cache
@@ -203,4 +204,3 @@ data/
 logs/
 work/
 target/
-
