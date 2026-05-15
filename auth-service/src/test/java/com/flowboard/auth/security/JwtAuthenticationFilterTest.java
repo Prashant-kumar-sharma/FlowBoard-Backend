@@ -77,8 +77,9 @@ class JwtAuthenticationFilterTest {
 
     @Test
     void filterSkipsWhenContextAlreadyHasAuthentication() throws Exception {
+        User existingUser = (User) User.withUsername("alice@test.com").password("pw").roles("MEMBER").build();
         SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken("existing", null)
+                new UsernamePasswordAuthenticationToken(existingUser, null, existingUser.getAuthorities())
         );
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer token");
@@ -114,6 +115,7 @@ class JwtAuthenticationFilterTest {
         filter.doFilter(request, response, filterChain);
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getPrincipal()).isEqualTo(user);
         assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
                 .extracting(Object::toString)
                 .contains("ROLE_MEMBER");

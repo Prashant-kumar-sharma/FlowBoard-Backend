@@ -19,7 +19,6 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.when;
@@ -60,16 +59,18 @@ class OAuth2AuthenticationSuccessHandlerTest {
     }
 
     @Test
-    void successHandlerThrowsWhenUserCannotBeResolved() {
+    void successHandlerRegistersMissingUserAndRedirects() throws Exception {
         OAuth2User principal = new DefaultOAuth2User(List.of(), Map.of("email", "missing@test.com"), "email");
+        User newUser = User.builder().id(99L).email("missing@test.com").username("missing_9999").role(User.Role.MEMBER).build();
         when(authentication.getPrincipal()).thenReturn(principal);
         when(userRepository.findByEmail("missing@test.com")).thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class))).thenReturn(newUser);
+        when(jwtUtil.generateToken(anyMap(), any())).thenReturn("new-user-token");
 
-        assertThatThrownBy(() -> handler.onAuthenticationSuccess(
-                new MockHttpServletRequest(),
-                new MockHttpServletResponse(),
-                authentication))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("User not found");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        handler.onAuthenticationSuccess(new MockHttpServletRequest(), response, authentication);
+
+        assertThat(response.getRedirectedUrl())
+                .isEqualTo("http://localhost:4200/auth/oauth2/callback?token=new-user-token");
     }
 }

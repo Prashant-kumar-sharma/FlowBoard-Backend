@@ -170,16 +170,21 @@ class PaymentServiceTest {
                 .status(PaymentOrder.Status.CREATED)
                 .build();
 
-        PaymentSummaryResponse summary = PaymentSummaryResponse.builder().userId(1L).premium(true).build();
-
         when(paymentOrderRepository.findByProviderOrderId("order_123")).thenReturn(Optional.of(order));
         when(paymentQueryService.verifySignature("order_123", "pay_123", "good")).thenReturn(true);
         when(premiumSubscriptionRepository.findByUserId(1L)).thenReturn(Optional.of(PremiumSubscription.builder().userId(1L).build()));
-        when(paymentQueryService.getSummary(1L)).thenReturn(summary);
+        when(paymentQueryService.getRazorpayKeyId()).thenReturn("rzp_test");
 
         PaymentSummaryResponse response = paymentService.confirmPayment(1L, request);
 
-        assertThat(response).isSameAs(summary);
+        assertThat(response.getUserId()).isEqualTo(1L);
+        assertThat(response.isPremium()).isTrue();
+        assertThat(response.getPlanCode()).isEqualTo("PREMIUM_MONTHLY");
+        assertThat(response.getPlanName()).isEqualTo("FlowBoard Premium");
+        assertThat(response.getPremiumAmountPaise()).isEqualTo(49900);
+        assertThat(response.getCurrency()).isEqualTo("INR");
+        assertThat(response.getRazorpayKeyId()).isEqualTo("rzp_test");
+        assertThat(response.getActivatedAt()).isNotNull();
         assertThat(order.getStatus()).isEqualTo(PaymentOrder.Status.PAID);
         assertThat(order.getProviderPaymentId()).isEqualTo("pay_123");
         verify(paymentEventProducer).sendPremiumActivated(any(PaymentEventProducer.PremiumActivatedEvent.class));
@@ -204,10 +209,13 @@ class PaymentServiceTest {
         when(paymentOrderRepository.findByProviderOrderId("order_123")).thenReturn(Optional.of(order));
         when(paymentQueryService.verifySignature("order_123", "pay_123", "good")).thenReturn(true);
         when(premiumSubscriptionRepository.findByUserId(1L)).thenReturn(Optional.empty());
-        when(paymentQueryService.getSummary(1L)).thenReturn(PaymentSummaryResponse.builder().userId(1L).build());
+        when(paymentQueryService.getRazorpayKeyId()).thenReturn("rzp_test");
 
-        paymentService.confirmPayment(1L, request);
+        PaymentSummaryResponse response = paymentService.confirmPayment(1L, request);
 
+        assertThat(response.getUserId()).isEqualTo(1L);
+        assertThat(response.isPremium()).isTrue();
+        assertThat(response.getPlanCode()).isEqualTo("PREMIUM_MONTHLY");
         verify(premiumSubscriptionRepository).save(any(PremiumSubscription.class));
     }
 
