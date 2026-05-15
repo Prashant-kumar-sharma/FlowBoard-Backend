@@ -69,9 +69,9 @@ jobs:
     needs: build-and-push
 
     steps:
-      - name: Skip deploy when branch or secrets are unavailable
-        if: ${{ github.ref != 'refs/heads/main' || secrets.EC2_HOST == '' || secrets.EC2_USERNAME == '' || secrets.EC2_SSH_KEY == '' || secrets.SERVER_APP_PATH == '' }}
-        run: echo "Skipping deploy because this is not main or deploy secrets are missing."
+      - name: Skip deploy outside main
+        if: ${{ github.ref != 'refs/heads/main' }}
+        run: echo "Skipping deploy because this is not the main branch."
 
       - name: Deploy on EC2
         if: ${{ github.ref == 'refs/heads/main' }}
