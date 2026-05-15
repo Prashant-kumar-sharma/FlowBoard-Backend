@@ -67,10 +67,14 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build-and-push
-    if: ${{ github.ref == 'refs/heads/main' && secrets.EC2_HOST != '' && secrets.EC2_USERNAME != '' && secrets.EC2_SSH_KEY != '' && secrets.SERVER_APP_PATH != '' }}
 
     steps:
+      - name: Skip deploy when branch or secrets are unavailable
+        if: ${{ github.ref != 'refs/heads/main' || secrets.EC2_HOST == '' || secrets.EC2_USERNAME == '' || secrets.EC2_SSH_KEY == '' || secrets.SERVER_APP_PATH == '' }}
+        run: echo "Skipping deploy because this is not main or deploy secrets are missing."
+
       - name: Deploy on EC2
+        if: ${{ github.ref == 'refs/heads/main' }}
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.EC2_HOST }}
