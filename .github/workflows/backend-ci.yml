@@ -17,6 +17,14 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      GOOGLE_CLIENT_ID: ci-google-client-id
+      GOOGLE_CLIENT_SECRET: ci-google-client-secret
+      MAIL_USERNAME: ci-mail-user@example.com
+      MAIL_PASSWORD: ci-mail-password
+      MAIL_FROM: ci-mail-from@example.com
+      KAFKA_BOOTSTRAP_SERVERS: 127.0.0.1:29092
+      JWT_SECRET: 12345678901234567890123456789012
 
     steps:
       - name: Checkout code
