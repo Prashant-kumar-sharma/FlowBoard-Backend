@@ -106,10 +106,11 @@ jobs:
             image="${REGISTRY}/${IMAGE_NAMESPACE}/flowboard-${service}"
             docker buildx build \
               --file "./${service}/Dockerfile" \
+              --build-context project-root=. \
               --tag "${image}:latest" \
               --tag "${image}:${IMAGE_SHA_TAG}" \
               --push \
-              .
+              "./${service}"
           done
 
   deploy:
