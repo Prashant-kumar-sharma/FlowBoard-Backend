@@ -2,9 +2,9 @@ package com.flowboard.api_gateway.filter;
 
 import com.flowboard.api_gateway.config.JwtUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -58,7 +58,7 @@ public class AuthenticationFilterGatewayFilterFactory extends AbstractGatewayFil
             }
 
             String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-            if (!hasBearerToken(authHeader)) {
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                 return onError(exchange, "Invalid Authorization header", HttpStatus.UNAUTHORIZED);
             }
 
@@ -101,15 +101,12 @@ public class AuthenticationFilterGatewayFilterFactory extends AbstractGatewayFil
         return allowedPaths.stream().anyMatch(path::contains);
     }
 
-    private boolean hasBearerToken(String authHeader) {
-        return authHeader != null && authHeader.startsWith("Bearer ");
-    }
-
     private Mono<Void> onError(ServerWebExchange exchange, String err, HttpStatus httpStatus) {
         log.error("Authentication error: {}", err);
         exchange.getResponse().setStatusCode(httpStatus);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
         byte[] body = ("{\"message\":\"" + err + "\"}").getBytes(StandardCharsets.UTF_8);
-        return exchange.getResponse().writeWith(Mono.just(exchange.getResponse().bufferFactory().wrap(body)));
+        DataBuffer dataBuffer = exchange.getResponse().bufferFactory().wrap(body);
+        return exchange.getResponse().writeWith(Mono.just(dataBuffer));
     }
 }

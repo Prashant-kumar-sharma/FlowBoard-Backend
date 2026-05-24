@@ -21,8 +21,6 @@ import java.util.Map;
 public class NotificationKafkaConsumer {
     private static final String EMAIL_FIELD = "email";
     private static final String FULL_NAME_FIELD = "fullName";
-    private static final String USERS_SEGMENT = "users";
-    private static final String USERNAME_SEGMENT = "username";
 
     private final NotificationRepository notificationRepository;
     private final EmailService emailService;

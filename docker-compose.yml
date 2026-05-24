@@ -12,7 +12,7 @@ services:
       MYSQL_USER: ${DB_USERNAME}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -91,11 +91,15 @@ services:
   eureka-server:
     image: prashar85211/flowboard-eureka-server
     build:
-      context: .
-      dockerfile: eureka-server/Dockerfile
+      context: ./eureka-server
+      dockerfile: Dockerfile
+      additional_contexts:
+        project-root: .
     container_name: flowboard-eureka
     ports:
       - "8761:8761"
+    volumes:
+      - ./logs/eureka-server:/app/logs
     healthcheck:
       test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8761/actuator/health" ]
       interval: 10s
@@ -107,13 +111,17 @@ services:
   admin-server:
     image: prashar85211/flowboard-admin-server
     build:
-      context: .
-      dockerfile: admin-server/Dockerfile
+      context: ./admin-server
+      dockerfile: Dockerfile
+      additional_contexts:
+        project-root: .
     container_name: flowboard-admin
     ports:
       - "9090:9090"
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+    volumes:
+      - ./logs/admin-server:/app/logs
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -123,8 +131,10 @@ services:
   api-gateway:
     image: prashar85211/flowboard-api-gateway
     build:
-      context: .
-      dockerfile: api-gateway/Dockerfile
+      context: ./api-gateway
+      dockerfile: Dockerfile
+      additional_contexts:
+        project-root: .
     container_name: flowboard-gateway
     ports:
       - "8080:8080"
@@ -133,6 +143,8 @@ services:
       ADMIN_SERVER_URL: http://admin-server:9090
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:4200}
       AUTH_SERVICE_INTERNAL_BASE_URL: http://auth-service:8081/api/v1/auth/internal
+    volumes:
+      - ./logs/api-gateway:/app/logs
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -161,8 +173,10 @@ services:
   auth-service:
     image: prashar85211/flowboard-auth-service
     build:
-      context: .
-      dockerfile: auth-service/Dockerfile
+      context: ./auth-service
+      dockerfile: Dockerfile
+      additional_contexts:
+        project-root: .
     container_name: flowboard-auth
     ports:
       - "8081:8081"
@@ -176,6 +190,8 @@ services:
       ADMIN_SERVER_URL: http://admin-server:9090
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+    volumes:
+      - ./logs/auth-service:/app/logs
     depends_on:
       mysql:
         condition: service_healthy
@@ -193,8 +209,10 @@ services:
   payment-service:
     image: prashar85211/flowboard-payment-service
     build:
-      context: .
-      dockerfile: payment-service/Dockerfile
+      context: ./payment-service
+      dockerfile: Dockerfile
+      additional_contexts:
+        project-root: .
     container_name: flowboard-payment
     ports:
       - "8089:8089"
@@ -205,6 +223,8 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
       ADMIN_SERVER_URL: http://admin-server:9090
+    volumes:
+      - ./logs/payment-service:/app/logs
     depends_on:
       mysql:
         condition: service_healthy
@@ -218,8 +238,10 @@ services:
   workspace-service:
     image: prashar85211/flowboard-workspace-service
     build:
-      context: .
-      dockerfile: workspace-service/Dockerfile
+      context: ./workspace-service
+      dockerfile: Dockerfile
+      additional_contexts:
+        project-root: .
     container_name: flowboard-workspace
     ports:
       - "8082:8082"
@@ -232,6 +254,8 @@ services:
       BOARD_SERVICE_BASE_URL: http://board-service:8083/api/v1/boards/internal
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
       ADMIN_SERVER_URL: http://admin-server:9090
+    volumes:
+      - ./logs/workspace-service:/app/logs
     depends_on:
       mysql:
         condition: service_healthy
@@ -247,8 +271,10 @@ services:
   board-service:
     image: prashar85211/flowboard-board-service
     build:
-      context: .
-      dockerfile: board-service/Dockerfile
+      context: ./board-service
+      dockerfile: Dockerfile
+      additional_contexts:
+        project-root: .
     container_name: flowboard-board
     ports:
       - "8083:8083"
@@ -261,6 +287,8 @@ services:
       CARD_SERVICE_BASE_URL: http://card-service:8085/api/v1/cards/internal
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
       ADMIN_SERVER_URL: http://admin-server:9090
+    volumes:
+      - ./logs/board-service:/app/logs
     depends_on:
       mysql:
         condition: service_healthy
@@ -278,8 +306,10 @@ services:
   list-service:
     image: prashar85211/flowboard-list-service
     build:
-      context: .
-      dockerfile: list-service/Dockerfile
+      context: ./list-service
+      dockerfile: Dockerfile
+      additional_contexts:
+        project-root: .
     container_name: flowboard-list
     ports:
       - "8084:8084"
@@ -291,6 +321,8 @@ services:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
       ADMIN_SERVER_URL: http://admin-server:9090
       CARD_SERVICE_BASE_URL: http://card-service:8085/api/v1/cards/internal
+    volumes:
+      - ./logs/list-service:/app/logs
     depends_on:
       mysql:
         condition: service_healthy
@@ -304,8 +336,10 @@ services:
   card-service:
     image: prashar85211/flowboard-card-service
     build:
-      context: .
-      dockerfile: card-service/Dockerfile
+      context: ./card-service
+      dockerfile: Dockerfile
+      additional_contexts:
+        project-root: .
     container_name: flowboard-card
     ports:
       - "8085:8085"
@@ -316,6 +350,8 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
       ADMIN_SERVER_URL: http://admin-server:9090
+    volumes:
+      - ./logs/card-service:/app/logs
     depends_on:
       mysql:
         condition: service_healthy
@@ -331,8 +367,10 @@ services:
   comment-service:
     image: prashar85211/flowboard-comment-service
     build:
-      context: .
-      dockerfile: comment-service/Dockerfile
+      context: ./comment-service
+      dockerfile: Dockerfile
+      additional_contexts:
+        project-root: .
     container_name: flowboard-comment
     ports:
       - "8086:8086"
@@ -345,6 +383,7 @@ services:
       ADMIN_SERVER_URL: http://admin-server:9090
     volumes:
       - comment_uploads:/app/uploads
+      - ./logs/comment-service:/app/logs
     depends_on:
       mysql:
         condition: service_healthy
@@ -358,8 +397,10 @@ services:
   label-service:
     image: prashar85211/flowboard-label-service
     build:
-      context: .
-      dockerfile: label-service/Dockerfile
+      context: ./label-service
+      dockerfile: Dockerfile
+      additional_contexts:
+        project-root: .
     container_name: flowboard-label
     ports:
       - "8087:8087"
@@ -368,6 +409,8 @@ services:
       DB_HOST: mysql
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
       ADMIN_SERVER_URL: http://admin-server:9090
+    volumes:
+      - ./logs/label-service:/app/logs
     depends_on:
       mysql:
         condition: service_healthy
@@ -379,8 +422,10 @@ services:
   notification-service:
     image: prashar85211/flowboard-notification-service
     build:
-      context: .
-      dockerfile: notification-service/Dockerfile
+      context: ./notification-service
+      dockerfile: Dockerfile
+      additional_contexts:
+        project-root: .
     container_name: flowboard-notification
     ports:
       - "8088:8088"
@@ -393,6 +438,8 @@ services:
       CARD_SERVICE_BASE_URL: http://card-service:8085/api/v1/cards
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
       ADMIN_SERVER_URL: http://admin-server:9090
+    volumes:
+      - ./logs/notification-service:/app/logs
     depends_on:
       mysql:
         condition: service_healthy

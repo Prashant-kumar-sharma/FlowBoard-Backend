@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,16 +24,16 @@ public class ListController {
     // TEMPORARY DEBUG ENDPOINT - remove after fixing
     @GetMapping("/debug/all")
     @Operation(summary = "[DEBUG] Get ALL lists in DB with their boardId")
-    public ResponseEntity<List<java.util.Map<String, Object>>> debugAll() {
+    public ResponseEntity<List<Map<String, Object>>> debugAll() {
         var allLists = taskListRepository.findAll();
         var result = allLists.stream().map(l -> {
-            var map = new java.util.LinkedHashMap<String, Object>();
+            Map<String, Object> map = new LinkedHashMap<>();
             map.put("id", l.getId());
             map.put("name", l.getName());
             map.put("boardId", l.getBoardId());
             map.put("position", l.getPosition());
             map.put("isArchived", l.getIsArchived());
-            return (java.util.Map<String, Object>) map;
+            return map;
         }).toList();
         log.info(">>> DEBUG ALL LISTS: {}", result);
         return ResponseEntity.ok(result);

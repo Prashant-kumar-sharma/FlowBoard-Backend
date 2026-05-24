@@ -1,0 +1,12 @@
+target/
+.git/
+.idea/
+.vscode/
+.metadata/
+*.iml
+*.log
+docs/
+Sonarqube guide.txt
+sonar-project.properties
+README.md
+start-all.bat

@@ -12,6 +12,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -33,8 +34,8 @@ class AuthEventProducerTest {
     void sendAccountSuspendedPublishesSuspendedEvent() {
         producer.sendAccountSuspended(user);
 
-        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
-        verify(kafkaTemplate).send(org.mockito.ArgumentMatchers.eq("flowboard.account.status.changed"), captor.capture());
+        ArgumentCaptor<Map<String, Object>> captor = mapCaptor();
+        verify(kafkaTemplate).send(eq("flowboard.account.status.changed"), captor.capture());
         assertThat(captor.getValue()).containsEntry("status", "SUSPENDED");
     }
 
@@ -42,8 +43,13 @@ class AuthEventProducerTest {
     void sendAccountRestoredPublishesRestoredEvent() {
         producer.sendAccountRestored(user);
 
-        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
-        verify(kafkaTemplate).send(org.mockito.ArgumentMatchers.eq("flowboard.account.status.changed"), captor.capture());
+        ArgumentCaptor<Map<String, Object>> captor = mapCaptor();
+        verify(kafkaTemplate).send(eq("flowboard.account.status.changed"), captor.capture());
         assertThat(captor.getValue()).containsEntry("status", "RESTORED");
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private ArgumentCaptor<Map<String, Object>> mapCaptor() {
+        return ArgumentCaptor.forClass((Class) Map.class);
     }
 }

@@ -1,5 +1,6 @@
 package com.flowboard.comment.kafka;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,7 +15,6 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -53,17 +53,17 @@ class CommentEventProducerTest {
                 "flowboard.mention.notification"
         );
 
-        assertThat(objectMapper.readValue(payloads.get(0), Map.class))
+        assertThat(readPayload(payloads.get(0)))
                 .containsEntry("commentId", 11)
                 .containsEntry("cardId", 22)
                 .containsEntry("authorId", 33);
 
-        assertThat(objectMapper.readValue(payloads.get(1), Map.class))
+        assertThat(readPayload(payloads.get(1)))
                 .containsEntry("username", "john")
                 .containsEntry("cardId", 22)
                 .containsEntry("actorId", 33);
 
-        assertThat(objectMapper.readValue(payloads.get(2), Map.class))
+        assertThat(readPayload(payloads.get(2)))
                 .containsEntry("username", "jane")
                 .containsEntry("cardId", 22)
                 .containsEntry("actorId", 33);
@@ -80,14 +80,18 @@ class CommentEventProducerTest {
 
         List<String> payloads = payloadCaptor.getAllValues();
 
-        assertThat(objectMapper.readValue(payloads.get(1), Map.class))
+        assertThat(readPayload(payloads.get(1)))
                 .containsEntry("username", "john.doe")
                 .containsEntry("cardId", 22)
                 .containsEntry("actorId", 33);
 
-        assertThat(objectMapper.readValue(payloads.get(2), Map.class))
+        assertThat(readPayload(payloads.get(2)))
                 .containsEntry("username", "jane_doe")
                 .containsEntry("cardId", 22)
                 .containsEntry("actorId", 33);
+    }
+
+    private Map<String, Object> readPayload(String payload) throws Exception {
+        return objectMapper.readValue(payload, new TypeReference<Map<String, Object>>() {});
     }
 }

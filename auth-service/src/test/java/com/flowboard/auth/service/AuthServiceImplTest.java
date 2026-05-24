@@ -12,7 +12,6 @@ import com.flowboard.auth.exception.ResourceNotFoundException;
 import com.flowboard.auth.kafka.AuthEventProducer;
 import com.flowboard.auth.repository.UserRepository;
 import com.flowboard.auth.security.JwtUtil;
-import com.flowboard.auth.service.PaymentCleanupClient;
 import com.flowboard.auth.service.impl.AuthServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
