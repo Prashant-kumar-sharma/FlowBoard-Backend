@@ -38,8 +38,9 @@ public class WorkspaceController {
     @Operation(summary = "Get workspace by ID")
     public ResponseEntity<WorkspaceResponse> getById(
             @PathVariable Long id,
-            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
-        return ResponseEntity.ok(workspaceService.getById(id, userId));
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @RequestHeader(value = "X-User-Role", required = false) String requesterRole) {
+        return ResponseEntity.ok(workspaceService.getById(id, userId, requesterRole));
     }
 
     @GetMapping("/my")
@@ -67,16 +68,18 @@ public class WorkspaceController {
     public ResponseEntity<WorkspaceResponse> update(
             @PathVariable Long id,
             @RequestBody CreateWorkspaceRequest request,
-            @RequestHeader("X-User-Id") Long userId) {
-        return ResponseEntity.ok(workspaceService.update(id, userId, request));
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader(value = "X-User-Role", required = false) String requesterRole) {
+        return ResponseEntity.ok(workspaceService.update(id, userId, requesterRole, request));
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete workspace")
     public ResponseEntity<Void> delete(
             @PathVariable Long id,
-            @RequestHeader("X-User-Id") Long userId) {
-        workspaceService.delete(id, userId);
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader(value = "X-User-Role", required = false) String requesterRole) {
+        workspaceService.delete(id, userId, requesterRole);
         return ResponseEntity.noContent().build();
     }
 
@@ -96,9 +99,10 @@ public class WorkspaceController {
     public ResponseEntity<MemberResponse> addMember(
             @PathVariable Long id,
             @RequestBody com.flowboard.workspace.dto.request.AddMemberRequest request,
-            @RequestHeader("X-User-Id") Long requesterId) {
+            @RequestHeader("X-User-Id") Long requesterId,
+            @RequestHeader(value = "X-User-Role", required = false) String requesterRole) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(workspaceService.addMember(id, requesterId, request));
+                .body(workspaceService.addMember(id, requesterId, requesterRole, request));
     }
 
     @DeleteMapping("/{id}/members/{userId}")
@@ -106,8 +110,9 @@ public class WorkspaceController {
     public ResponseEntity<Void> removeMember(
             @PathVariable Long id,
             @PathVariable Long userId,
-            @RequestHeader("X-User-Id") Long requesterId) {
-        workspaceService.removeMember(id, requesterId, userId);
+            @RequestHeader("X-User-Id") Long requesterId,
+            @RequestHeader(value = "X-User-Role", required = false) String requesterRole) {
+        workspaceService.removeMember(id, requesterId, requesterRole, userId);
         return ResponseEntity.noContent().build();
     }
 
@@ -117,8 +122,9 @@ public class WorkspaceController {
             @PathVariable Long id,
             @PathVariable Long userId,
             @RequestBody com.flowboard.workspace.dto.request.UpdateRoleRequest request,
-            @RequestHeader("X-User-Id") Long requesterId) {
-        workspaceService.updateMemberRole(id, requesterId, userId, request.getRole());
+            @RequestHeader("X-User-Id") Long requesterId,
+            @RequestHeader(value = "X-User-Role", required = false) String requesterRole) {
+        workspaceService.updateMemberRole(id, requesterId, requesterRole, userId, request.getRole());
         return ResponseEntity.ok().build();
     }
 

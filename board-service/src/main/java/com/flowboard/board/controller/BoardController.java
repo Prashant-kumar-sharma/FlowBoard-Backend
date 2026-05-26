@@ -32,8 +32,9 @@ public class BoardController {
     @Operation(summary = "Get board by ID")
     public ResponseEntity<BoardResponse> getById(
             @PathVariable Long id,
-            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
-        return ResponseEntity.ok(boardService.getById(id, userId));
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @RequestHeader(value = "X-User-Role", required = false) String requesterRole) {
+        return ResponseEntity.ok(boardService.getById(id, userId, requesterRole));
     }
 
     @GetMapping("/workspace/{workspaceId}")
@@ -58,19 +59,24 @@ public class BoardController {
     @PutMapping("/{id}")
     public ResponseEntity<BoardResponse> update(@PathVariable Long id,
                                                  @RequestBody CreateBoardRequest req,
-                                                 @RequestHeader("X-User-Id") Long userId) {
-        return ResponseEntity.ok(boardService.update(id, req, userId));
+                                                 @RequestHeader("X-User-Id") Long userId,
+                                                 @RequestHeader(value = "X-User-Role", required = false) String requesterRole) {
+        return ResponseEntity.ok(boardService.update(id, req, userId, requesterRole));
     }
 
     @PatchMapping("/{id}/close")
-    public ResponseEntity<Void> close(@PathVariable Long id, @RequestHeader("X-User-Id") Long userId) {
-        boardService.closeBoard(id, userId);
+    public ResponseEntity<Void> close(@PathVariable Long id,
+                                      @RequestHeader("X-User-Id") Long userId,
+                                      @RequestHeader(value = "X-User-Role", required = false) String requesterRole) {
+        boardService.closeBoard(id, userId, requesterRole);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id, @RequestHeader("X-User-Id") Long userId) {
-        boardService.deleteBoard(id, userId);
+    public ResponseEntity<Void> delete(@PathVariable Long id,
+                                       @RequestHeader("X-User-Id") Long userId,
+                                       @RequestHeader(value = "X-User-Role", required = false) String requesterRole) {
+        boardService.deleteBoard(id, userId, requesterRole);
         return ResponseEntity.noContent().build();
     }
 
@@ -94,6 +100,16 @@ public class BoardController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/admin/{id}/members/{userId}/admin")
+    public ResponseEntity<BoardMemberResponse> assignBoardAdmin(
+            @PathVariable Long id,
+            @PathVariable Long userId,
+            @RequestHeader("X-User-Id") Long requesterId,
+            @RequestHeader("X-User-Role") String requesterRole) {
+        assertPlatformAdmin(requesterRole);
+        return ResponseEntity.ok(boardService.assignBoardAdmin(id, userId, requesterId));
+    }
+
     @DeleteMapping("/internal/workspace/{workspaceId}")
     public ResponseEntity<Void> deleteByWorkspaceInternal(
             @PathVariable Long workspaceId,
@@ -105,14 +121,16 @@ public class BoardController {
     @PostMapping("/{id}/members")
     public ResponseEntity<BoardMemberResponse> addMember(@PathVariable Long id,
                                                           @RequestBody com.flowboard.board.dto.request.AddBoardMemberRequest req,
-                                                          @RequestHeader("X-User-Id") Long requesterId) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(boardService.addMember(id, req.getUserId(), req.getRole(), requesterId));
+                                                          @RequestHeader("X-User-Id") Long requesterId,
+                                                          @RequestHeader(value = "X-User-Role", required = false) String requesterRole) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(boardService.addMember(id, req.getUserId(), req.getRole(), requesterId, requesterRole));
     }
 
     @DeleteMapping("/{id}/members/{userId}")
     public ResponseEntity<Void> removeMember(@PathVariable Long id, @PathVariable Long userId,
-                                              @RequestHeader("X-User-Id") Long requesterId) {
-        boardService.removeMember(id, userId, requesterId);
+                                              @RequestHeader("X-User-Id") Long requesterId,
+                                              @RequestHeader(value = "X-User-Role", required = false) String requesterRole) {
+        boardService.removeMember(id, userId, requesterId, requesterRole);
         return ResponseEntity.noContent().build();
     }
 
@@ -121,8 +139,9 @@ public class BoardController {
             @PathVariable Long id,
             @PathVariable Long userId,
             @Valid @RequestBody com.flowboard.board.dto.request.UpdateBoardMemberRoleRequest req,
-            @RequestHeader("X-User-Id") Long requesterId) {
-        return ResponseEntity.ok(boardService.updateMemberRole(id, userId, req.getRole(), requesterId));
+            @RequestHeader("X-User-Id") Long requesterId,
+            @RequestHeader(value = "X-User-Role", required = false) String requesterRole) {
+        return ResponseEntity.ok(boardService.updateMemberRole(id, userId, req.getRole(), requesterId, requesterRole));
     }
 
     @GetMapping("/{id}/members")

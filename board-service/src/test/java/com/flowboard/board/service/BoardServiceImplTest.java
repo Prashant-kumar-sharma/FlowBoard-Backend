@@ -91,7 +91,7 @@ class BoardServiceImplTest {
     void getByIdRejectsGuestForPrivateBoard() {
         when(boardRepository.findById(1L)).thenReturn(Optional.of(board));
 
-        assertThatThrownBy(() -> boardService.getById(1L, null))
+        assertThatThrownBy(() -> boardService.getById(1L, null, "MEMBER"))
                 .isInstanceOf(AccessDeniedException.class);
     }
 
@@ -122,7 +122,7 @@ class BoardServiceImplTest {
         when(boardRepository.findById(2L)).thenReturn(Optional.of(publicBoard));
         when(memberRepository.findByBoardId(2L)).thenReturn(List.of(member));
 
-        BoardResponse response = boardService.getById(2L, 7L);
+        BoardResponse response = boardService.getById(2L, 7L, "MEMBER");
 
         assertThat(response.getMembers()).hasSize(1);
     }
@@ -148,7 +148,7 @@ class BoardServiceImplTest {
         when(boardRepository.findById(1L)).thenReturn(Optional.of(board));
         when(memberRepository.findByBoardIdAndUserId(1L, 9L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> boardService.update(1L, new CreateBoardRequest(), 9L))
+        assertThatThrownBy(() -> boardService.update(1L, new CreateBoardRequest(), 9L, "MEMBER"))
                 .isInstanceOf(AccessDeniedException.class);
     }
 
@@ -161,7 +161,7 @@ class BoardServiceImplTest {
         when(boardRepository.save(board)).thenReturn(board);
         when(memberRepository.findByBoardId(1L)).thenReturn(List.of(adminMember));
 
-        BoardResponse response = boardService.update(1L, request, 7L);
+        BoardResponse response = boardService.update(1L, request, 7L, "MEMBER");
 
         assertThat(response.getName()).isEqualTo("Updated");
     }
@@ -171,7 +171,7 @@ class BoardServiceImplTest {
         when(boardRepository.findById(1L)).thenReturn(Optional.of(board));
         when(memberRepository.findByBoardIdAndUserId(1L, 7L)).thenReturn(Optional.of(adminMember));
 
-        boardService.closeBoard(1L, 7L);
+        boardService.closeBoard(1L, 7L, "MEMBER");
 
         assertThat(board.getIsClosed()).isTrue();
         verify(boardRepository).save(board);
@@ -181,7 +181,7 @@ class BoardServiceImplTest {
     void deleteBoardRequiresCreator() {
         when(boardRepository.findById(1L)).thenReturn(Optional.of(board));
 
-        assertThatThrownBy(() -> boardService.deleteBoard(1L, 99L))
+        assertThatThrownBy(() -> boardService.deleteBoard(1L, 99L, "MEMBER"))
                 .isInstanceOf(AccessDeniedException.class);
         verify(boardRepository, never()).delete(any(Board.class));
     }
@@ -190,7 +190,7 @@ class BoardServiceImplTest {
     void deleteBoardDeletesWhenRequesterIsCreator() {
         when(boardRepository.findById(1L)).thenReturn(Optional.of(board));
 
-        boardService.deleteBoard(1L, 7L);
+        boardService.deleteBoard(1L, 7L, "MEMBER");
 
         verify(cardCleanupClient).deleteByBoardId(1L);
         verify(listCleanupClient).deleteByBoardId(1L);
@@ -248,16 +248,41 @@ class BoardServiceImplTest {
         doThrow(new RuntimeException("kafka down"))
                 .when(eventProducer).sendMemberInvited(1L, "Roadmap", 8L, 7L, "MEMBER");
 
-        BoardMemberResponse response = boardService.addMember(1L, 8L, BoardMember.Role.MEMBER, 7L);
+        BoardMemberResponse response = boardService.addMember(1L, 8L, BoardMember.Role.MEMBER, 7L, "MEMBER");
 
         assertThat(response.getUserId()).isEqualTo(8L);
+    }
+
+    @Test
+    void assignBoardAdminAddsMissingMemberAsAdmin() {
+        when(boardRepository.findById(1L)).thenReturn(Optional.of(board));
+        when(memberRepository.findByBoardIdAndUserId(1L, 8L)).thenReturn(Optional.empty());
+        when(memberRepository.save(any(BoardMember.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        BoardMemberResponse response = boardService.assignBoardAdmin(1L, 8L, 99L);
+
+        assertThat(response.getUserId()).isEqualTo(8L);
+        assertThat(response.getRole()).isEqualTo(BoardMember.Role.ADMIN);
+    }
+
+    @Test
+    void assignBoardAdminPromotesExistingMember() {
+        BoardMember member = BoardMember.builder().board(board).userId(8L).role(BoardMember.Role.MEMBER).build();
+        when(boardRepository.findById(1L)).thenReturn(Optional.of(board));
+        when(memberRepository.findByBoardIdAndUserId(1L, 8L)).thenReturn(Optional.of(member));
+        when(memberRepository.save(member)).thenReturn(member);
+
+        BoardMemberResponse response = boardService.assignBoardAdmin(1L, 8L, 99L);
+
+        assertThat(response.getRole()).isEqualTo(BoardMember.Role.ADMIN);
     }
 
     @Test
     void removeMemberDeletesRelation() {
         when(memberRepository.findByBoardIdAndUserId(1L, 7L)).thenReturn(Optional.of(adminMember));
 
-        boardService.removeMember(1L, 8L, 7L);
+        boardService.removeMember(1L, 8L, 7L, "MEMBER");
 
         verify(memberRepository).deleteByBoardIdAndUserId(1L, 8L);
     }
@@ -267,7 +292,7 @@ class BoardServiceImplTest {
         when(memberRepository.findByBoardIdAndUserId(1L, 7L)).thenReturn(Optional.of(adminMember));
         when(memberRepository.findByBoardIdAndUserId(1L, 8L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> boardService.updateMemberRole(1L, 8L, BoardMember.Role.ADMIN, 7L))
+        assertThatThrownBy(() -> boardService.updateMemberRole(1L, 8L, BoardMember.Role.ADMIN, 7L, "MEMBER"))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -278,7 +303,7 @@ class BoardServiceImplTest {
         when(memberRepository.findByBoardIdAndUserId(1L, 8L)).thenReturn(Optional.of(member));
         when(memberRepository.save(member)).thenReturn(member);
 
-        BoardMemberResponse response = boardService.updateMemberRole(1L, 8L, BoardMember.Role.ADMIN, 7L);
+        BoardMemberResponse response = boardService.updateMemberRole(1L, 8L, BoardMember.Role.ADMIN, 7L, "MEMBER");
 
         assertThat(response.getRole()).isEqualTo(BoardMember.Role.ADMIN);
     }
@@ -292,3 +317,4 @@ class BoardServiceImplTest {
         assertThat(boardService.getAuditEvents()).isEmpty();
     }
 }
+

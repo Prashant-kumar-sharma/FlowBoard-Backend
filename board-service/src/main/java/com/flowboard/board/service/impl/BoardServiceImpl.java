@@ -65,11 +65,12 @@ public class BoardServiceImpl implements BoardService {
 
     @Override @Transactional(readOnly = true)
     @Cacheable(cacheNames = BOARD_BY_ID_CACHE, key = "#id + ':' + (#userId == null ? 'guest' : #userId)")
-    public BoardResponse getById(Long id, Long userId) {
+    public BoardResponse getById(Long id, Long userId, String requesterRole) {
         Board b = find(id);
         
         // Security check: If private, must be a member
         if (b.getVisibility() == Board.Visibility.PRIVATE
+                && !isPlatformAdmin(requesterRole)
                 && (userId == null || !memberRepository.existsByBoardIdAndUserId(id, userId))) {
             throw new AccessDeniedException("Access denied to private board");
         }
@@ -124,9 +125,9 @@ public class BoardServiceImpl implements BoardService {
             BOARD_ALL_CACHE,
             BOARD_MEMBERS_CACHE
     }, allEntries = true)
-    public BoardResponse update(Long id, CreateBoardRequest req, Long userId) {
+    public BoardResponse update(Long id, CreateBoardRequest req, Long userId, String requesterRole) {
         Board board = find(id);
-        assertAdmin(id, userId);
+        assertAdmin(id, userId, requesterRole);
         if (req.getName() != null) board.setName(req.getName());
         if (req.getDescription() != null) board.setDescription(req.getDescription());
         if (req.getBackground() != null) board.setBackground(req.getBackground());
@@ -144,9 +145,9 @@ public class BoardServiceImpl implements BoardService {
             BOARD_ALL_CACHE,
             BOARD_MEMBERS_CACHE
     }, allEntries = true)
-    public void closeBoard(Long id, Long userId) {
+    public void closeBoard(Long id, Long userId, String requesterRole) {
         Board board = find(id);
-        assertAdmin(id, userId);
+        assertAdmin(id, userId, requesterRole);
         board.setIsClosed(true);
         boardRepository.save(board);
         logAudit(id, userId, "BOARD_CLOSED", BOARD_TARGET_TYPE, String.valueOf(id), board.getName());
@@ -160,9 +161,9 @@ public class BoardServiceImpl implements BoardService {
             BOARD_ALL_CACHE,
             BOARD_MEMBERS_CACHE
     }, allEntries = true)
-    public void deleteBoard(Long id, Long userId) {
+    public void deleteBoard(Long id, Long userId, String requesterRole) {
         Board board = find(id);
-        if (!board.getCreatedById().equals(userId)) throw new AccessDeniedException("Only the creator can delete");
+        if (!isPlatformAdmin(requesterRole) && !board.getCreatedById().equals(userId)) throw new AccessDeniedException("Only the creator can delete");
         deleteBoardWithDependents(board, userId, "BOARD_DELETED");
     }
 
@@ -215,9 +216,9 @@ public class BoardServiceImpl implements BoardService {
             BOARD_ALL_CACHE,
             BOARD_MEMBERS_CACHE
     }, allEntries = true)
-    public BoardMemberResponse addMember(Long boardId, Long userId, BoardMember.Role role, Long requesterId) {
+    public BoardMemberResponse addMember(Long boardId, Long userId, BoardMember.Role role, Long requesterId, String requesterRole) {
         Board board = find(boardId);
-        assertAdmin(boardId, requesterId);
+        assertAdmin(boardId, requesterId, requesterRole);
         BoardMember m = BoardMember.builder().board(board).userId(userId).role(role != null ? role : BoardMember.Role.MEMBER).build();
         BoardMember saved = memberRepository.save(m);
         logAudit(boardId, requesterId, "BOARD_MEMBER_ADDED", "USER", String.valueOf(userId), saved.getRole().name());
@@ -240,8 +241,28 @@ public class BoardServiceImpl implements BoardService {
             BOARD_ALL_CACHE,
             BOARD_MEMBERS_CACHE
     }, allEntries = true)
-    public void removeMember(Long boardId, Long userId, Long requesterId) {
-        assertAdmin(boardId, requesterId);
+    public BoardMemberResponse assignBoardAdmin(Long boardId, Long userId, Long requesterId) {
+        Board board = find(boardId);
+        BoardMember member = memberRepository.findByBoardIdAndUserId(boardId, userId)
+                .orElseGet(() -> BoardMember.builder().board(board).userId(userId).build());
+
+        member.setRole(BoardMember.Role.ADMIN);
+        BoardMember saved = memberRepository.save(member);
+        logAudit(boardId, requesterId, "BOARD_ADMIN_ASSIGNED_BY_PLATFORM_ADMIN", "USER", String.valueOf(userId), BoardMember.Role.ADMIN.name());
+
+        return BoardMemberResponse.from(saved);
+    }
+
+    @Override
+    @CacheEvict(cacheNames = {
+            BOARD_BY_ID_CACHE,
+            BOARD_BY_WORKSPACE_CACHE,
+            BOARD_BY_MEMBER_CACHE,
+            BOARD_ALL_CACHE,
+            BOARD_MEMBERS_CACHE
+    }, allEntries = true)
+    public void removeMember(Long boardId, Long userId, Long requesterId, String requesterRole) {
+        assertAdmin(boardId, requesterId, requesterRole);
         logAudit(boardId, requesterId, "BOARD_MEMBER_REMOVED", "USER", String.valueOf(userId), null);
         memberRepository.deleteByBoardIdAndUserId(boardId, userId);
     }
@@ -254,8 +275,8 @@ public class BoardServiceImpl implements BoardService {
             BOARD_ALL_CACHE,
             BOARD_MEMBERS_CACHE
     }, allEntries = true)
-    public BoardMemberResponse updateMemberRole(Long boardId, Long userId, BoardMember.Role role, Long requesterId) {
-        assertAdmin(boardId, requesterId);
+    public BoardMemberResponse updateMemberRole(Long boardId, Long userId, BoardMember.Role role, Long requesterId, String requesterRole) {
+        assertAdmin(boardId, requesterId, requesterRole);
         BoardMember m = memberRepository.findByBoardIdAndUserId(boardId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Board member not found"));
         m.setRole(role);
@@ -283,10 +304,18 @@ public class BoardServiceImpl implements BoardService {
         return boardRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Board not found: " + id));
     }
 
-    private void assertAdmin(Long boardId, Long userId) {
+    private void assertAdmin(Long boardId, Long userId, String requesterRole) {
+        if (isPlatformAdmin(requesterRole)) {
+            return;
+        }
+
         memberRepository.findByBoardIdAndUserId(boardId, userId)
                 .filter(m -> m.getRole() == BoardMember.Role.ADMIN)
                 .orElseThrow(() -> new AccessDeniedException("Board admin access required"));
+    }
+
+    private boolean isPlatformAdmin(String requesterRole) {
+        return "PLATFORM_ADMIN".equalsIgnoreCase(requesterRole);
     }
 
     private BoardResponse toResponse(Board b) {

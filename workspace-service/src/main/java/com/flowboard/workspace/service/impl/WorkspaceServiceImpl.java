@@ -56,11 +56,12 @@ public class WorkspaceServiceImpl implements WorkspaceService {
 
     @Override @Transactional(readOnly = true)
     @Cacheable(cacheNames = "workspace:byId", key = "#id + ':' + (#userId == null ? 'guest' : #userId)")
-    public WorkspaceResponse getById(Long id, Long userId) {
+    public WorkspaceResponse getById(Long id, Long userId, String requesterRole) {
         Workspace w = findById(id);
         
         // Security check: If private, must be a member
         if (w.getVisibility() == Workspace.Visibility.PRIVATE
+                && !isPlatformAdmin(requesterRole)
                 && (userId == null || !memberRepository.existsByWorkspaceIdAndUserId(id, userId))) {
             throw new UnauthorizedException("Access denied to private workspace");
         }
@@ -115,9 +116,9 @@ public class WorkspaceServiceImpl implements WorkspaceService {
 
     @Override
     @CacheEvict(cacheNames = {"workspace:byId", "workspace:byOwner", "workspace:byMember", "workspace:public", "workspace:all", "workspace:members"}, allEntries = true)
-    public WorkspaceResponse update(Long id, Long userId, CreateWorkspaceRequest req) {
+    public WorkspaceResponse update(Long id, Long userId, String requesterRole, CreateWorkspaceRequest req) {
         Workspace w = findById(id);
-        assertAdmin(id, userId);
+        assertAdmin(id, userId, requesterRole);
         w.setName(req.getName());
         if (req.getDescription() != null) w.setDescription(req.getDescription());
         if (req.getLogoUrl() != null) w.setLogoUrl(req.getLogoUrl());
@@ -129,9 +130,9 @@ public class WorkspaceServiceImpl implements WorkspaceService {
 
     @Override
     @CacheEvict(cacheNames = {"workspace:byId", "workspace:byOwner", "workspace:byMember", "workspace:public", "workspace:all", "workspace:members"}, allEntries = true)
-    public void delete(Long id, Long userId) {
+    public void delete(Long id, Long userId, String requesterRole) {
         Workspace w = findById(id);
-        if (!w.getOwnerId().equals(userId)) throw new UnauthorizedException("Only owner can delete workspace");
+        if (!isPlatformAdmin(requesterRole) && !w.getOwnerId().equals(userId)) throw new UnauthorizedException("Only owner can delete workspace");
         boardCleanupClient.deleteByWorkspaceId(id, userId);
         logAudit(id, userId, "WORKSPACE_DELETED", WORKSPACE_TARGET_TYPE, String.valueOf(id), w.getName());
         workspaceRepository.delete(w);
@@ -148,8 +149,8 @@ public class WorkspaceServiceImpl implements WorkspaceService {
 
     @Override
     @CacheEvict(cacheNames = {"workspace:byId", "workspace:byOwner", "workspace:byMember", "workspace:public", "workspace:all", "workspace:members"}, allEntries = true)
-    public MemberResponse addMember(Long workspaceId, Long requesterId, AddMemberRequest req) {
-        assertAdmin(workspaceId, requesterId);
+    public MemberResponse addMember(Long workspaceId, Long requesterId, String requesterRole, AddMemberRequest req) {
+        assertAdmin(workspaceId, requesterId, requesterRole);
         if (memberRepository.existsByWorkspaceIdAndUserId(workspaceId, req.getUserId()))
             throw new DuplicateResourceException("User is already a member");
         Workspace ws = findById(workspaceId);
@@ -172,16 +173,16 @@ public class WorkspaceServiceImpl implements WorkspaceService {
 
     @Override
     @CacheEvict(cacheNames = {"workspace:byId", "workspace:byOwner", "workspace:byMember", "workspace:public", "workspace:all", "workspace:members"}, allEntries = true)
-    public void removeMember(Long workspaceId, Long requesterId, Long targetUserId) {
-        assertAdmin(workspaceId, requesterId);
+    public void removeMember(Long workspaceId, Long requesterId, String requesterRole, Long targetUserId) {
+        assertAdmin(workspaceId, requesterId, requesterRole);
         logAudit(workspaceId, requesterId, "MEMBER_REMOVED", "USER", String.valueOf(targetUserId), null);
         memberRepository.deleteByWorkspaceIdAndUserId(workspaceId, targetUserId);
     }
 
     @Override
     @CacheEvict(cacheNames = {"workspace:byId", "workspace:byOwner", "workspace:byMember", "workspace:public", "workspace:all", "workspace:members"}, allEntries = true)
-    public void updateMemberRole(Long workspaceId, Long requesterId, Long targetUserId, String role) {
-        assertAdmin(workspaceId, requesterId);
+    public void updateMemberRole(Long workspaceId, Long requesterId, String requesterRole, Long targetUserId, String role) {
+        assertAdmin(workspaceId, requesterId, requesterRole);
         WorkspaceMember member = memberRepository.findByWorkspaceIdAndUserId(workspaceId, targetUserId)
             .orElseThrow(() -> new ResourceNotFoundException("Member not found"));
         member.setRole(WorkspaceMember.Role.valueOf(role));
@@ -209,10 +210,18 @@ public class WorkspaceServiceImpl implements WorkspaceService {
             .orElseThrow(() -> new ResourceNotFoundException("Workspace not found: " + id));
     }
 
-    private void assertAdmin(Long workspaceId, Long userId) {
+    private void assertAdmin(Long workspaceId, Long userId, String requesterRole) {
+        if (isPlatformAdmin(requesterRole)) {
+            return;
+        }
+
         memberRepository.findByWorkspaceIdAndUserId(workspaceId, userId)
             .filter(m -> m.getRole() == WorkspaceMember.Role.ADMIN)
             .orElseThrow(() -> new UnauthorizedException("Admin access required"));
+    }
+
+    private boolean isPlatformAdmin(String requesterRole) {
+        return "PLATFORM_ADMIN".equalsIgnoreCase(requesterRole);
     }
 
     private WorkspaceResponse toResponse(Workspace workspace) {

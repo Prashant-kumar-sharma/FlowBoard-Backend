@@ -81,7 +81,7 @@ class WorkspaceServiceImplTest {
     @Test
     void should_throwResourceNotFoundException_when_workspaceNotFound() {
         when(workspaceRepository.findById(99L)).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> workspaceService.getById(99L, 10L))
+        assertThatThrownBy(() -> workspaceService.getById(99L, 10L, "MEMBER"))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -91,7 +91,7 @@ class WorkspaceServiceImplTest {
         when(memberRepository.existsByWorkspaceIdAndUserId(1L, 10L)).thenReturn(true);
         when(memberRepository.findByWorkspaceId(1L)).thenReturn(List.of(adminMember));
 
-        WorkspaceResponse response = workspaceService.getById(1L, 10L);
+        WorkspaceResponse response = workspaceService.getById(1L, 10L, "MEMBER");
 
         assertThat(response.getMembers()).hasSize(1);
     }
@@ -101,7 +101,7 @@ class WorkspaceServiceImplTest {
         sampleWorkspace.setVisibility(Workspace.Visibility.PUBLIC);
         when(workspaceRepository.findById(1L)).thenReturn(Optional.of(sampleWorkspace));
 
-        WorkspaceResponse response = workspaceService.getById(1L, null);
+        WorkspaceResponse response = workspaceService.getById(1L, null, "MEMBER");
 
         assertThat(response.getMembers()).isEmpty();
     }
@@ -149,7 +149,7 @@ class WorkspaceServiceImplTest {
     @Test
     void should_deleteWorkspace_when_requesterIsOwner() {
         when(workspaceRepository.findById(1L)).thenReturn(Optional.of(sampleWorkspace));
-        workspaceService.delete(1L, 10L);
+        workspaceService.delete(1L, 10L, "MEMBER");
         verify(boardCleanupClient).deleteByWorkspaceId(1L, 10L);
         verify(workspaceRepository).delete(sampleWorkspace);
     }
@@ -157,7 +157,7 @@ class WorkspaceServiceImplTest {
     @Test
     void should_throwAccessDenied_when_nonOwnerTriesToDelete() {
         when(workspaceRepository.findById(1L)).thenReturn(Optional.of(sampleWorkspace));
-        assertThatThrownBy(() -> workspaceService.delete(1L, 99L))
+        assertThatThrownBy(() -> workspaceService.delete(1L, 99L, "MEMBER"))
                 .isInstanceOf(UnauthorizedException.class);
         verify(workspaceRepository, never()).delete(any());
     }
@@ -178,7 +178,7 @@ class WorkspaceServiceImplTest {
         addReq.setUserId(20L);
         addReq.setRole("MEMBER");
 
-        MemberResponse response = workspaceService.addMember(1L, 10L, addReq);
+        MemberResponse response = workspaceService.addMember(1L, 10L, "MEMBER", addReq);
         assertThat(response).isNotNull();
         verify(memberRepository).save(any());
     }
@@ -192,7 +192,7 @@ class WorkspaceServiceImplTest {
         AddMemberRequest addReq = new AddMemberRequest();
         addReq.setUserId(20L);
 
-        assertThatThrownBy(() -> workspaceService.addMember(1L, 99L, addReq))
+        assertThatThrownBy(() -> workspaceService.addMember(1L, 99L, "MEMBER", addReq))
                 .isInstanceOf(UnauthorizedException.class);
     }
 
@@ -205,7 +205,7 @@ class WorkspaceServiceImplTest {
         addReq.setUserId(20L);
         addReq.setRole("MEMBER");
 
-        assertThatThrownBy(() -> workspaceService.addMember(1L, 10L, addReq))
+        assertThatThrownBy(() -> workspaceService.addMember(1L, 10L, "MEMBER", addReq))
                 .isInstanceOf(DuplicateResourceException.class)
                 .hasMessage("User is already a member");
         verify(memberRepository, never()).save(any());
@@ -231,7 +231,7 @@ class WorkspaceServiceImplTest {
         when(memberRepository.findByWorkspaceIdAndUserId(1L, 10L)).thenReturn(Optional.of(adminMember));
         when(workspaceRepository.save(sampleWorkspace)).thenReturn(sampleWorkspace);
 
-        WorkspaceResponse response = workspaceService.update(1L, 10L, req);
+        WorkspaceResponse response = workspaceService.update(1L, 10L, "MEMBER", req);
 
         assertThat(response.getName()).isEqualTo("Renamed");
         assertThat(response.getDescription()).isEqualTo("Updated desc");
@@ -275,7 +275,7 @@ class WorkspaceServiceImplTest {
         when(memberRepository.countByWorkspaceId(1L)).thenReturn(5L);
         when(paymentEntitlementClient.isPremium(10L)).thenReturn(false);
 
-        assertThatThrownBy(() -> workspaceService.addMember(1L, 10L, addReq))
+        assertThatThrownBy(() -> workspaceService.addMember(1L, 10L, "MEMBER", addReq))
                 .isInstanceOf(PaymentRequiredException.class)
                 .hasMessageContaining("up to 5 members");
     }
@@ -284,7 +284,7 @@ class WorkspaceServiceImplTest {
     void should_removeMember_when_requesterIsAdmin() {
         when(memberRepository.findByWorkspaceIdAndUserId(1L, 10L)).thenReturn(Optional.of(adminMember));
 
-        workspaceService.removeMember(1L, 10L, 20L);
+        workspaceService.removeMember(1L, 10L, "MEMBER", 20L);
 
         verify(memberRepository).deleteByWorkspaceIdAndUserId(1L, 20L);
     }
@@ -297,7 +297,7 @@ class WorkspaceServiceImplTest {
         when(memberRepository.findByWorkspaceIdAndUserId(1L, 20L)).thenReturn(Optional.of(member));
         when(memberRepository.save(member)).thenReturn(member);
 
-        workspaceService.updateMemberRole(1L, 10L, 20L, "ADMIN");
+        workspaceService.updateMemberRole(1L, 10L, "MEMBER", 20L, "ADMIN");
 
         assertThat(member.getRole()).isEqualTo(WorkspaceMember.Role.ADMIN);
     }
@@ -307,7 +307,7 @@ class WorkspaceServiceImplTest {
         when(memberRepository.findByWorkspaceIdAndUserId(1L, 10L)).thenReturn(Optional.of(adminMember));
         when(memberRepository.findByWorkspaceIdAndUserId(1L, 20L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> workspaceService.updateMemberRole(1L, 10L, 20L, "ADMIN"))
+        assertThatThrownBy(() -> workspaceService.updateMemberRole(1L, 10L, "MEMBER", 20L, "ADMIN"))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -325,3 +325,4 @@ class WorkspaceServiceImplTest {
         assertThat(workspaceService.getAuditEvents()).isEmpty();
     }
 }
+
